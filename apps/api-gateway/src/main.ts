@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { ClientProxy } from '@nestjs/microservices';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -24,13 +25,13 @@ async function bootstrap() {
   // Warmup microservice connection before starting HTTP server
   // This ensures RabbitMQ is fully connected and ready
   console.log('Warming up microservice connections...');
-  const microservices = app.get('USER_SERVICE');
+  const microservices = app.get<ClientProxy>('USER_SERVICE');
 
   // Force connection by connecting
   await microservices.connect();
 
   // Give it a moment to fully establish
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  await new Promise<void>((resolve) => setTimeout(() => resolve(), 2000));
 
   console.log('User Service connection ready');
 
@@ -56,4 +57,4 @@ async function bootstrap() {
   console.log(`API Gateway is running on: http://localhost:${port}`);
   console.log(`Swagger documentation: http://localhost:${port}/api/docs`);
 }
-bootstrap();
+void bootstrap();

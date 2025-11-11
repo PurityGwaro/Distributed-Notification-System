@@ -9,10 +9,7 @@ import { RedisService } from './redis.service';
 import { RabbitMQService } from './rabbitmq.service';
 import { NotificationRequestDto } from '../dto/notification-request.dto';
 import { NotificationStatusDto } from '../dto/notification-status.dto';
-import {
-  NotificationStatus,
-  NotificationType,
-} from '@common/interfaces/notification.interface';
+import { NotificationStatus } from '@common/interfaces/notification.interface';
 
 @Injectable()
 export class NotificationService {
@@ -32,7 +29,9 @@ export class NotificationService {
       const existingNotification = await this.redisService.get(idempotencyKey);
       throw new ConflictException({
         message: 'Notification with this request_id already exists',
-        notification: existingNotification ? JSON.parse(existingNotification) : null,
+        notification: existingNotification
+          ? JSON.parse(existingNotification)
+          : null,
       });
     }
 

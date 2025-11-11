@@ -1,4 +1,12 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsObject, ValidateNested } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsObject,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -23,7 +31,10 @@ export class CreateUserDto {
   @IsNotEmpty()
   email: string;
 
-  @ApiPropertyOptional({ example: 'device_push_token', description: 'Push notification token' })
+  @ApiPropertyOptional({
+    example: 'device_push_token',
+    description: 'Push notification token',
+  })
   @IsOptional()
   @IsString()
   push_token?: string;
@@ -37,7 +48,11 @@ export class CreateUserDto {
   @Type(() => UserPreferenceDto)
   preferences: UserPreferenceDto;
 
-  @ApiProperty({ example: 'SecurePassword123!', description: 'User password', minLength: 6 })
+  @ApiProperty({
+    example: 'SecurePassword123!',
+    description: 'User password',
+    minLength: 6,
+  })
   @IsNotEmpty()
   @IsString()
   @MinLength(6)

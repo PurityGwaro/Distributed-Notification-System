@@ -1,8 +1,13 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as amqp from 'amqp-connection-manager';
 import { ChannelWrapper } from 'amqp-connection-manager';
-import { Channel, ConsumeMessage } from 'amqplib';
+import { Channel } from 'amqplib';
 import { NotificationType } from '@common/interfaces/notification.interface';
 
 @Injectable()
@@ -24,9 +29,13 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
       setup: async (channel: Channel) => {
         await channel.assertExchange(exchange, 'direct', { durable: true });
 
-        const emailQueue = this.configService.get<string>('RABBITMQ_EMAIL_QUEUE');
+        const emailQueue = this.configService.get<string>(
+          'RABBITMQ_EMAIL_QUEUE',
+        );
         const pushQueue = this.configService.get<string>('RABBITMQ_PUSH_QUEUE');
-        const failedQueue = this.configService.get<string>('RABBITMQ_FAILED_QUEUE');
+        const failedQueue = this.configService.get<string>(
+          'RABBITMQ_FAILED_QUEUE',
+        );
 
         await channel.assertQueue(emailQueue, { durable: true });
         await channel.assertQueue(pushQueue, { durable: true });
@@ -58,21 +67,29 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     notificationType: NotificationType,
     message: any,
   ): Promise<void> {
-    const exchange = this.configService.get<string>('RABBITMQ_EXCHANGE') || 'notifications.direct';
-    const routingKey = notificationType === NotificationType.EMAIL ? 'email' : 'push';
+    const exchange =
+      this.configService.get<string>('RABBITMQ_EXCHANGE') ||
+      'notifications.direct';
+    const routingKey =
+      notificationType === NotificationType.EMAIL ? 'email' : 'push';
 
     try {
       await this.channelWrapper.publish(exchange, routingKey, message);
 
       this.logger.log(`Message published to ${routingKey} queue`);
     } catch (error) {
-      this.logger.error(`Failed to publish message to ${routingKey} queue`, error);
+      this.logger.error(
+        `Failed to publish message to ${routingKey} queue`,
+        error,
+      );
       throw error;
     }
   }
 
   async publishToFailedQueue(message: any): Promise<void> {
-    const exchange = this.configService.get<string>('RABBITMQ_EXCHANGE') || 'notifications.direct';
+    const exchange =
+      this.configService.get<string>('RABBITMQ_EXCHANGE') ||
+      'notifications.direct';
 
     try {
       await this.channelWrapper.publish(exchange, 'failed', message);

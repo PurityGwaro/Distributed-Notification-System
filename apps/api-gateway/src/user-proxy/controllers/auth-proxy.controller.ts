@@ -40,7 +40,10 @@ export class AuthProxyController {
       // Extract error details from RpcException
       // RpcException can be structured as error.error or directly as error
       const errorData = error.error || error;
-      const statusCode = errorData.statusCode || error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR;
+      const statusCode =
+        errorData.statusCode ||
+        error.statusCode ||
+        HttpStatus.INTERNAL_SERVER_ERROR;
       const message = errorData.message || error.message || 'An error occurred';
 
       // Map status codes to appropriate HTTP exceptions

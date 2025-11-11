@@ -2,7 +2,6 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -42,7 +41,15 @@ export class UserService {
     const [users, total] = await this.userRepository.findAndCount({
       skip: (page - 1) * limit,
       take: limit,
-      select: ['id', 'email', 'name', 'push_token', 'preferences', 'created_at', 'updated_at'],
+      select: [
+        'id',
+        'email',
+        'name',
+        'push_token',
+        'preferences',
+        'created_at',
+        'updated_at',
+      ],
     });
 
     return {
@@ -54,7 +61,15 @@ export class UserService {
   async findOne(id: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id },
-      select: ['id', 'email', 'name', 'push_token', 'preferences', 'created_at', 'updated_at'],
+      select: [
+        'id',
+        'email',
+        'name',
+        'push_token',
+        'preferences',
+        'created_at',
+        'updated_at',
+      ],
     });
 
     if (!user) {

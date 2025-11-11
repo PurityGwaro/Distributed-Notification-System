@@ -17,7 +17,6 @@ import {
 } from '@nestjs/swagger';
 import { NotificationService } from '../services/notification.service';
 import { NotificationRequestDto } from '../dto/notification-request.dto';
-import { NotificationStatusDto } from '../dto/notification-status.dto';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { User } from '@common/interfaces/user.interface';
@@ -46,12 +45,13 @@ export class NotificationController {
     );
 
     if (!rateLimitAllowed) {
-      throw new BadRequestException('Rate limit exceeded. Please try again later.');
+      throw new BadRequestException(
+        'Rate limit exceeded. Please try again later.',
+      );
     }
 
-    const result = await this.notificationService.createNotification(
-      notificationDto,
-    );
+    const result =
+      await this.notificationService.createNotification(notificationDto);
 
     return {
       success: true,
@@ -67,7 +67,8 @@ export class NotificationController {
   @ApiResponse({ status: 200, description: 'Notification status retrieved' })
   @ApiResponse({ status: 404, description: 'Notification not found' })
   async getNotificationStatus(@Param('id') id: string) {
-    const notification = await this.notificationService.getNotificationStatus(id);
+    const notification =
+      await this.notificationService.getNotificationStatus(id);
 
     return {
       success: true,

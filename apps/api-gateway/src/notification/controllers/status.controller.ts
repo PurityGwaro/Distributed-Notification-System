@@ -26,9 +26,8 @@ export class StatusController {
     @Param('notification_type') notificationType: string,
     @Body() statusDto: NotificationStatusDto,
   ) {
-    const notification = await this.notificationService.updateNotificationStatus(
-      statusDto,
-    );
+    const notification =
+      await this.notificationService.updateNotificationStatus(statusDto);
 
     return {
       success: true,

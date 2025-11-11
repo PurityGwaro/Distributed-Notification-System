@@ -25,7 +25,10 @@ export class UserServiceConnectionService implements OnModuleInit {
         .pipe(
           timeout(5000),
           catchError((error) => {
-            this.logger.warn('Ping failed, but connection may still work:', error.message);
+            this.logger.warn(
+              'Ping failed, but connection may still work:',
+              error.message,
+            );
             return of(null);
           }),
         )

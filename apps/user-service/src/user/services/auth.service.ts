@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  NotFoundException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from './user.service';
 import { User } from '../entities/user.entity';
@@ -17,11 +21,16 @@ export class AuthService {
     const user = await this.userService.findByEmail(loginDto.email);
 
     if (!user) {
-      throw new NotFoundException(`No account found with email: ${loginDto.email}`);
+      throw new NotFoundException(
+        `No account found with email: ${loginDto.email}`,
+      );
     }
 
     // Validate password
-    const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
+    const isPasswordValid = await bcrypt.compare(
+      loginDto.password,
+      user.password,
+    );
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid password');
@@ -44,7 +53,7 @@ export class AuthService {
     try {
       const payload = this.jwtService.verify(token);
       return this.userService.findOne(payload.sub);
-    } catch (error) {
+    } catch {
       return null;
     }
   }

@@ -29,6 +29,8 @@ async function bootstrap() {
   );
 
   await app.listen();
-  console.log('User Service microservice is listening on RabbitMQ (user_queue)');
+  console.log(
+    'User Service microservice is listening on RabbitMQ (user_queue)',
+  );
 }
-bootstrap();
+void bootstrap();

@@ -20,7 +20,6 @@ import { ClientProxy } from '@nestjs/microservices';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { firstValueFrom } from 'rxjs';
 import { CreateUserDto } from '../dto/create-user.dto';
-import { LoginDto } from '../dto/login.dto';
 
 @ApiTags('users')
 @Controller('api/v1/users')
@@ -35,7 +34,10 @@ export class UserProxyController {
     // Extract error details from RpcException
     // RpcException can be structured as error.error or directly as error
     const errorData = error.error || error;
-    const statusCode = errorData.statusCode || error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR;
+    const statusCode =
+      errorData.statusCode ||
+      error.statusCode ||
+      HttpStatus.INTERNAL_SERVER_ERROR;
     const message = errorData.message || error.message || 'An error occurred';
 
     // Map status codes to appropriate HTTP exceptions
