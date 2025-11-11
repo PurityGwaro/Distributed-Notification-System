@@ -47,14 +47,17 @@ export class TemplateService implements OnModuleInit, OnModuleDestroy {
   async findByCode(code: string) {
     const cached = await this.redisClient.get(`template:${code}`);
     if (cached) {
+      const data = typeof cached === 'string' ? JSON.parse(cached) : cached;
       return {
         success: true,
         message: 'Template retrieved successfully from cache',
-        data: JSON.parse(cached),
+        data,
       };
     }
 
-    const template = await this.templateRepository.findOneBy({ code });
+    const template = await this.templateRepository.findOne({
+      where: { code, is_active: true },
+    });
 
     if (!template) {
       throw new NotFoundException('Template Not found');

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Template } from './template/template.entity';
 import { TemplateModule } from './template/template.module';
+import { HealthModule } from './health/heath.module';
 
 @Module({
   imports: [
@@ -15,7 +16,8 @@ import { TemplateModule } from './template/template.module';
       entities: [Template],
       synchronize: true, // set to true development only.
     }),
-    TemplateModule
+    TemplateModule,
+    HealthModule
   ],
 })
 export class AppModule {}
