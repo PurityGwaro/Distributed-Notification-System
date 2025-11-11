@@ -1,0 +1,125 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: notification_system
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - notification-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - notification-network
+
+  # rabbitmq:
+  #   image: rabbitmq:3-management-alpine
+  #   environment:
+  #     RABBITMQ_DEFAULT_USER: admin
+  #     RABBITMQ_DEFAULT_PASS: admin
+  #   ports:
+  #     - "5672:5672"
+  #     - "15672:15672"
+  #   networks:
+  #     - notification-network
+
+  # api-gateway:
+  #   build:
+  #     context: ./api-gateway
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - PORT=3000
+  #     - RABBITMQ_URL=amqp://admin:admin@rabbitmq:5672
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #     - USER_SERVICE_URL=http://user-service:3001
+  #     - TEMPLATE_SERVICE_URL=http://template-service:3004
+  #   depends_on:
+  #     - rabbitmq
+  #     - redis
+  #     - user-service
+  #   networks:
+  #     - notification-network
+
+  # user-service:
+  #   build:
+  #     context: ./user-service
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3001:3001"
+  #   environment:
+  #     - PORT=3001
+  #     - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/notification_system
+  #     - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - notification-network
+
+  # email-service:
+  #   build:
+  #     context: ./email-service
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3002:3002"
+  #   environment:
+  #     - PORT=3002
+  #     - RABBITMQ_URL=amqp://admin:admin@rabbitmq:5672
+  #     - SMTP_HOST=smtp.gmail.com
+  #     - SMTP_PORT=587
+  #     - SMTP_USER=your-email@gmail.com
+  #     - SMTP_PASS=your-app-password
+  #     - TEMPLATE_SERVICE_URL=http://template-service:3004
+  #   depends_on:
+  #     - rabbitmq
+  #   networks:
+  #     - notification-network
+
+  # push-service:
+  #   build:
+  #     context: ./push-service
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3003:3003"
+  #   environment:
+  #     - PORT=3003
+  #     - RABBITMQ_URL=amqp://admin:admin@rabbitmq:5672
+  #     - FCM_SERVER_KEY=your-fcm-server-key
+  #     - TEMPLATE_SERVICE_URL=http://template-service:3004
+  #   depends_on:
+  #     - rabbitmq
+  #   networks:
+  #     - notification-network
+
+  template-service:
+    build:
+      context: ./template-service
+      dockerfile: Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/notification_system
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - notification-network
+
+volumes:
+  postgres_data:
+
+networks:
+  notification-network:
+    driver: bridge
