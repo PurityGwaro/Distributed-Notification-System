@@ -65,40 +65,40 @@ services:
     networks:
       - notification-network
 
-  # email-service:
-  #   build:
-  #     context: ./email-service
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - '3002:3002'
-  #   environment:
-  #     - PORT=3002
-  #     - RABBITMQ_URL=amqp://admin:admin@rabbitmq:5672
-  #     - SMTP_HOST=smtp.gmail.com
-  #     - SMTP_PORT=587
-  #     - SMTP_USER=your-email@gmail.com
-  #     - SMTP_PASS=your-app-password
-  #     - TEMPLATE_SERVICE_URL=http://template-service:3004
-  #   depends_on:
-  #     - rabbitmq
-  #   networks:
-  #     - notification-network
+  email_service:
+    build:
+      context: ./email_service
+      dockerfile: Dockerfile
+    ports:
+      - '3002:3002'
+    environment:
+      - PORT=3002
+      - RABBITMQ_URL=amqp://admin:admin@rabbitmq:5672
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=your-email@gmail.com
+      - SMTP_PASS=your-app-password
+      - TEMPLATE_SERVICE_URL=http://template-service:3004
+    depends_on:
+      - rabbitmq
+    networks:
+      - notification-network
 
-  # push-service:
-  #   build:
-  #     context: ./push-service
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - '3003:3003'
-  #   environment:
-  #     - PORT=3003
-  #     - RABBITMQ_URL=amqp://admin:admin@rabbitmq:5672
-  #     - FCM_SERVER_KEY=your-fcm-server-key
-  #     - TEMPLATE_SERVICE_URL=http://template-service:3004
-  #   depends_on:
-  #     - rabbitmq
-  #   networks:
-  #     - notification-network
+  push-service:
+    build:
+      context: ./push-service
+      dockerfile: Dockerfile
+    ports:
+      - '3003:3003'
+    environment:
+      - PORT=3003
+      - RABBITMQ_URL=amqp://admin:admin@rabbitmq:5672
+      - FCM_SERVER_KEY=your-fcm-server-key
+      - TEMPLATE_SERVICE_URL=http://template-service:3004
+    depends_on:
+      - rabbitmq
+    networks:
+      - notification-network
 
   template-service:
     build:
