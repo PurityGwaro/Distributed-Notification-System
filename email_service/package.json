@@ -42,7 +42,7 @@
     "@nestjs/testing": "^11.1.8",
     "@types/amqplib": "^0.10.5",
     "@types/jest": "^30.0.0",
-    "@types/node": "^24.10.0",
+    "@types/node": "^24.10.1",
     "@types/nodemailer": "^6.4.17",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
