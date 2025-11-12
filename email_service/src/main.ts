@@ -32,7 +32,8 @@ async function bootstrap() {
     console.warn('rabbitMQ service not connected yet!');
   }
 
-  await app.listen(3000);
+  const port = process.env.PORT
+  await app.listen(port);
   console.log(' App running on http://localhost:3000');
 }
 
