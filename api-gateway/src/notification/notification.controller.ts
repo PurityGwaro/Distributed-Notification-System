@@ -6,6 +6,8 @@ import {
   Param,
   UseGuards,
   Request,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -27,6 +29,7 @@ export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @Post()
+  @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Send a notification (requires authentication)' })
@@ -36,10 +39,14 @@ export class NotificationController {
     @Body() dto: CreateNotificationDto,
     @Request() req: any,
   ): Promise<ApiResponseDto<any>> {
-    return this.notificationService.sendNotification(dto, req.user);
+    return this.notificationService.sendNotification(
+      dto,
+      req.user,
+      req.correlationId,
+    );
   }
 
-  @Get('status/:notification_id')
+  @Get(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
@@ -47,7 +54,7 @@ export class NotificationController {
   })
   @ApiResponse({ status: 200, description: 'Status retrieved successfully' })
   async getStatus(
-    @Param('notification_id') notificationId: string,
+    @Param('id') notificationId: string,
   ): Promise<ApiResponseDto<any>> {
     return this.notificationService.getStatus(notificationId);
   }

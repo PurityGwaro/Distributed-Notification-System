@@ -29,6 +29,7 @@ export class NotificationService {
   async sendNotification(
     dto: CreateNotificationDto,
     user: any,
+    correlationId?: string,
   ): Promise<ApiResponse<any>> {
     try {
       // Check for duplicate request (idempotency)
@@ -107,6 +108,7 @@ export class NotificationService {
       // Prepare message
       const message = {
         notification_id: notificationId,
+        request_id: dto.request_id,
         user_id: dto.user_id,
         user_email: targetUser.email,
         user_push_token: targetUser.push_token,
@@ -120,11 +122,14 @@ export class NotificationService {
       // Route to appropriate queue
       const queue =
         dto.notification_type === NotificationType.EMAIL
-          ? 'email.queue'
-          : 'push.queue';
+          ? 'email_queue'
+          : 'push_queue';
 
       await this.circuitBreaker.execute(async () => {
-        await this.rabbitMQService.publishToQueue(queue, message);
+        await this.rabbitMQService.publishToQueue(queue, message, {
+          correlation_id: correlationId,
+          request_id: dto.request_id,
+        });
       }, 'rabbitmq');
 
       // Mark request as processed

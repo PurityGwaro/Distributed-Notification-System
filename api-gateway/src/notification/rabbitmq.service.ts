@@ -20,12 +20,12 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
         await channel.assertExchange('notifications.direct', 'direct', {
           durable: true,
         });
-        await channel.assertQueue('email.queue', { durable: true });
-        await channel.assertQueue('push.queue', { durable: true });
-        await channel.assertQueue('failed.queue', { durable: true });
+        await channel.assertQueue('email_queue', { durable: true });
+        await channel.assertQueue('push_queue', { durable: true });
+        await channel.assertQueue('failed_queue', { durable: true });
 
-        await channel.bindQueue('email.queue', 'notifications.direct', 'email');
-        await channel.bindQueue('push.queue', 'notifications.direct', 'push');
+        await channel.bindQueue('email_queue', 'notifications.direct', 'email');
+        await channel.bindQueue('push_queue', 'notifications.direct', 'push');
       },
     });
 
@@ -33,9 +33,21 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     console.log('RabbitMQ connected');
   }
 
-  async publishToQueue(queue: string, message: any): Promise<void> {
-    const routingKey = queue.split('.')[0];
-    const options: Options.Publish = { persistent: true }; // <-- typed properly
+  async publishToQueue(
+    queue: string,
+    message: any,
+    headers?: Record<string, any>,
+  ): Promise<void> {
+    const routingKey = queue.split('_')[0]; // email_queue -> email, push_queue -> push
+    const options: Options.Publish = {
+      persistent: true,
+      headers: {
+        request_id: message.request_id || headers?.request_id,
+        correlation_id: headers?.correlation_id,
+        timestamp: new Date().toISOString(),
+        ...headers,
+      },
+    };
 
     await this.channelWrapper.publish(
       'notifications.direct',
