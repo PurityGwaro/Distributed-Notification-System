@@ -23,7 +23,7 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT || 3001;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`User Service running on port ${port}`);
   console.log(`Swagger docs available at http://localhost:${port}/api/docs`);
 }
