@@ -11,7 +11,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 
 describe('PushService Integration', () => {
   let app: INestMicroservice;
-  let service: PushService;
+  let _service: PushService;
   let repo: Repository<Notification>;
   let channel: amqp.Channel;
 
@@ -31,7 +31,7 @@ describe('PushService Integration', () => {
       },
     });
 
-    service = module.get<PushService>(PushService);
+    _service = module.get<PushService>(PushService);
     repo = module.get<Repository<Notification>>(
       getRepositoryToken(Notification),
     );
@@ -68,13 +68,15 @@ describe('PushService Integration', () => {
     let notif;
     const maxAttempts = 50; // max 10 seconds
     let attempts = 0;
-      while (!notif && attempts < maxAttempts) {
-    notif = await repo.findOne({ where: { device_token: 'integration-token' } });
-    if (!notif) await new Promise(res => setTimeout(res, 200)); // wait 200ms
-    attempts++;
-  }
-        expect(notif).toBeDefined();
-        expect(notif.title).toBe('payload.title');
-        expect(["sent", "failed"]).toContain(notif.status);
-    });
+    while (!notif && attempts < maxAttempts) {
+      notif = await repo.findOne({
+        where: { device_token: 'integration-token' },
+      });
+      if (!notif) await new Promise((res) => setTimeout(res, 200)); // wait 200ms
+      attempts++;
+    }
+    expect(notif).toBeDefined();
+    expect(notif.title).toBe('payload.title');
+    expect(['sent', 'failed']).toContain(notif.status);
+  });
 });

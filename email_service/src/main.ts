@@ -36,4 +36,4 @@ async function bootstrap() {
   console.log(' App running on http://localhost:3000');
 }
 
-bootstrap();
+void bootstrap();

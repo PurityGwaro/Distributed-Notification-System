@@ -17,7 +17,7 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly configService: ConfigService) {}
 
   async onModuleInit() {
-    this.connect();
+    await this.connect();
   }
 
   private async connect() {
@@ -34,7 +34,7 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
           this.logger.warn('abbitMQ connection closed. Reconnecting...');
           this.connection = null;
           this.channel = null;
-          this.connect();
+          void this.connect();
         });
 
         this.connection.on('error', (err) => {
@@ -88,14 +88,16 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       });
       this.logger.log(`message sent to queue "${queue}"`);
     } catch (err) {
-      this.logger.error(
-        `failed to send message to "${queue}": ${err.message}`,
-      );
+      this.logger.error(`failed to send message to "${queue}": ${err.message}`);
     }
   }
 
   // Consume messages with callback and prefetch control
-  async consume(queue: string, callback: (msg: any) => void, prefetch = 5) {
+  async consume(
+    queue: string,
+    callback: (msg: any) => Promise<void> | void,
+    prefetch = 5,
+  ) {
     if (!this.channel) {
       this.logger.warn('channel not ready yet!');
       return;
@@ -104,22 +106,22 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
     await this.assertQueue(queue); // ensure queue exists
     await this.channel.prefetch(prefetch);
 
-    this.channel.consume(queue, (message) => {
+    await this.channel.consume(queue, (message) => {
       if (message) {
-        try {
-          const content = JSON.parse(message.content.toString());
-          callback(content);
-          this.channel.ack(message);
-        } catch (err) {
-          this.logger.error('failed to process message:', err.message);
-          this.channel.nack(message, false, false); // discard or send to DLX
-        }
+        void (async () => {
+          try {
+            const content = JSON.parse(message.content.toString());
+            await callback(content);
+            this.channel.ack(message);
+          } catch (err) {
+            this.logger.error('failed to process message:', err.message);
+            this.channel.nack(message, false, false); // discard or send to DLX
+          }
+        })();
       }
     });
 
-    this.logger.log(
-      `listening to queue "${queue}" with prefetch=${prefetch}`,
-    );
+    this.logger.log(`listening to queue "${queue}" with prefetch=${prefetch}`);
   }
 
   isConnected() {
