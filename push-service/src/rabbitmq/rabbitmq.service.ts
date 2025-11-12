@@ -74,7 +74,9 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
 
     try {
       // Create dead letter exchange
-      await this.channel.assertExchange('dlx_push', 'direct', { durable: true });
+      await this.channel.assertExchange('dlx_push', 'direct', {
+        durable: true,
+      });
 
       // Create dead letter queue
       await this.channel.assertQueue('push_queue_dlq', { durable: true });
@@ -91,7 +93,9 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
         },
       });
 
-      this.logger.log('Queues and dead letter exchange configured successfully');
+      this.logger.log(
+        'Queues and dead letter exchange configured successfully',
+      );
     } catch (error) {
       this.logger.error(`Failed to setup queues: ${error.message}`);
     }
@@ -128,10 +132,13 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       message.properties.headers?.['x-correlation-id'] || undefined;
 
     const logPrefix = `[CID:${correlationId || 'N/A'}]`;
-    this.logger.log(`${logPrefix} Received message: ${JSON.stringify(content)}`);
+    this.logger.log(
+      `${logPrefix} Received message: ${JSON.stringify(content)}`,
+    );
 
     // Get retry count from message headers
-    const retryCount = (message.properties.headers?.['x-retry-count'] as number) || 0;
+    const retryCount =
+      (message.properties.headers?.['x-retry-count'] as number) || 0;
 
     try {
       // Build payload with correlation_id
@@ -147,7 +154,9 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       this.channel.ack(message);
       this.logger.log(`${logPrefix} Message processed successfully`);
     } catch (error) {
-      this.logger.error(`${logPrefix} Failed to process message: ${error.message}`);
+      this.logger.error(
+        `${logPrefix} Failed to process message: ${error.message}`,
+      );
 
       // Implement exponential backoff retry logic
       if (retryCount < this.MAX_RETRY_ATTEMPTS) {

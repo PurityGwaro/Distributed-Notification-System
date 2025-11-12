@@ -19,9 +19,15 @@ export class PushController {
       if (!notification) {
         return ApiResponseDto.error('Notification not found', 'Not found');
       }
-      return ApiResponseDto.success(notification, 'Notification retrieved successfully');
+      return ApiResponseDto.success(
+        notification,
+        'Notification retrieved successfully',
+      );
     } catch (error) {
-      return ApiResponseDto.error(error.message, 'Failed to retrieve notification');
+      return ApiResponseDto.error(
+        error.message,
+        'Failed to retrieve notification',
+      );
     }
   }
 
@@ -30,13 +36,17 @@ export class PushController {
   @ApiParam({ name: 'status', description: 'Status (pending, sent, failed)' })
   async getNotificationsByStatus(@Param('status') status: string) {
     try {
-      const notifications = await this.pushService.getNotificationsByStatus(status);
+      const notifications =
+        await this.pushService.getNotificationsByStatus(status);
       return ApiResponseDto.success(
         notifications,
         `Retrieved ${notifications.length} notifications with status: ${status}`,
       );
     } catch (error) {
-      return ApiResponseDto.error(error.message, 'Failed to retrieve notifications');
+      return ApiResponseDto.error(
+        error.message,
+        'Failed to retrieve notifications',
+      );
     }
   }
 }
