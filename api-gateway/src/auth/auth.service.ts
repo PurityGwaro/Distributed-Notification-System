@@ -13,11 +13,12 @@ export class AuthService {
 
   async login(loginDto: LoginDto) {
     try {
-      const userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:3001';
-      
+      const userServiceUrl =
+        process.env.USER_SERVICE_URL || 'http://localhost:3001';
+
       // Call User Service to validate credentials
       const response = await firstValueFrom(
-        this.httpService.post(`${userServiceUrl}/api/v1/users/login`, loginDto)
+        this.httpService.post(`${userServiceUrl}/api/v1/users/login`, loginDto),
       );
 
       if (!response.data.success) {
@@ -27,12 +28,12 @@ export class AuthService {
       const user = response.data.data;
 
       // Generate JWT token
-      const payload = { 
-        sub: user.id, 
+      const payload = {
+        sub: user.id,
         email: user.email,
-        name: user.name 
+        name: user.name,
       };
-      
+
       const access_token = this.jwtService.sign(payload);
 
       return {
@@ -57,9 +58,10 @@ export class AuthService {
 
   async validateUser(userId: string) {
     try {
-      const userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:3001';
+      const userServiceUrl =
+        process.env.USER_SERVICE_URL || 'http://localhost:3001';
       const response = await firstValueFrom(
-        this.httpService.get(`${userServiceUrl}/api/v1/users/${userId}`)
+        this.httpService.get(`${userServiceUrl}/api/v1/users/${userId}`),
       );
 
       if (!response.data.success) {
@@ -68,6 +70,7 @@ export class AuthService {
 
       return response.data.data;
     } catch (error) {
+      console.error(error);
       return null;
     }
   }

@@ -146,4 +146,4 @@ async function bootstrap() {
   console.log(`User Service Docs:    http://localhost:${port}/docs/users`);
   console.log(`Template Service Docs: http://localhost:${port}/docs/templates`);
 }
-bootstrap();
+void bootstrap();

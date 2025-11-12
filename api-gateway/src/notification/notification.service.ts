@@ -1,7 +1,17 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { CreateNotificationDto, UpdateStatusDto, NotificationType, NotificationStatus, ApiResponse } from './dto/notification.dto';
+import {
+  CreateNotificationDto,
+  UpdateStatusDto,
+  NotificationType,
+  NotificationStatus,
+  ApiResponse,
+} from './dto/notification.dto';
 import { RabbitMQService } from './rabbitmq.service';
 import { CircuitBreakerService } from './circuit-breaker.service';
 import { RedisService } from './redis.service';
@@ -16,12 +26,18 @@ export class NotificationService {
     private readonly redisService: RedisService,
   ) {}
 
-  async sendNotification(dto: CreateNotificationDto, user: any): Promise<ApiResponse<any>> {
+  async sendNotification(
+    dto: CreateNotificationDto,
+    user: any,
+  ): Promise<ApiResponse<any>> {
     try {
       // Check for duplicate request (idempotency)
-      const isDuplicate = await this.redisService.checkDuplicate(dto.request_id);
+      const isDuplicate = await this.redisService.checkDuplicate(
+        dto.request_id,
+      );
       if (isDuplicate) {
-        const existingNotificationId = await this.redisService.getRequestMapping(dto.request_id);
+        const existingNotificationId =
+          await this.redisService.getRequestMapping(dto.request_id);
         return {
           success: false,
           message: 'Duplicate request detected',
@@ -31,9 +47,10 @@ export class NotificationService {
       }
 
       // Validate user exists and get preferences
-      const userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:3001';
+      const userServiceUrl =
+        process.env.USER_SERVICE_URL || 'http://localhost:3001';
       const userResponse = await firstValueFrom(
-        this.httpService.get(`${userServiceUrl}/api/v1/users/${dto.user_id}`)
+        this.httpService.get(`${userServiceUrl}/api/v1/users/${dto.user_id}`),
       );
 
       if (!userResponse.data.success) {
@@ -45,18 +62,26 @@ export class NotificationService {
       // Check authorization - users can only send notifications to themselves
       // (In production, you'd have role-based permissions)
       if (user.userId !== dto.user_id) {
-        throw new ForbiddenException('You can only send notifications to yourself');
+        throw new ForbiddenException(
+          'You can only send notifications to yourself',
+        );
       }
 
       // Check user preferences
-      if (dto.notification_type === NotificationType.EMAIL && !targetUser.preferences.email) {
+      if (
+        dto.notification_type === NotificationType.EMAIL &&
+        !targetUser.preferences.email
+      ) {
         return {
           success: false,
           message: 'User has disabled email notifications',
         };
       }
 
-      if (dto.notification_type === NotificationType.PUSH && !targetUser.preferences.push) {
+      if (
+        dto.notification_type === NotificationType.PUSH &&
+        !targetUser.preferences.push
+      ) {
         return {
           success: false,
           message: 'User has disabled push notifications',
@@ -64,9 +89,12 @@ export class NotificationService {
       }
 
       // Get template
-      const templateServiceUrl = process.env.TEMPLATE_SERVICE_URL || 'http://localhost:3004';
+      const templateServiceUrl =
+        process.env.TEMPLATE_SERVICE_URL || 'http://localhost:3004';
       const templateResponse = await firstValueFrom(
-        this.httpService.get(`${templateServiceUrl}/api/v1/templates/${dto.template_code}`)
+        this.httpService.get(
+          `${templateServiceUrl}/api/v1/templates/${dto.template_code}`,
+        ),
       );
 
       if (!templateResponse.data.success) {
@@ -90,14 +118,14 @@ export class NotificationService {
       };
 
       // Route to appropriate queue
-      const queue = dto.notification_type === NotificationType.EMAIL ? 'email.queue' : 'push.queue';
-      
-      await this.circuitBreaker.execute(
-        async () => {
-          await this.rabbitMQService.publishToQueue(queue, message);
-        },
-        'rabbitmq'
-      );
+      const queue =
+        dto.notification_type === NotificationType.EMAIL
+          ? 'email.queue'
+          : 'push.queue';
+
+      await this.circuitBreaker.execute(async () => {
+        await this.rabbitMQService.publishToQueue(queue, message);
+      }, 'rabbitmq');
 
       // Mark request as processed
       await this.redisService.markProcessed(dto.request_id, notificationId);
@@ -130,7 +158,7 @@ export class NotificationService {
   async getStatus(notificationId: string): Promise<ApiResponse<any>> {
     try {
       const status = await this.redisService.getStatus(notificationId);
-      
+
       if (!status) {
         return {
           success: false,
@@ -152,10 +180,14 @@ export class NotificationService {
     }
   }
 
-  async updateNotificationStatus(dto: UpdateStatusDto): Promise<ApiResponse<any>> {
+  async updateNotificationStatus(
+    dto: UpdateStatusDto,
+  ): Promise<ApiResponse<any>> {
     try {
-      const currentStatus = await this.redisService.getStatus(dto.notification_id);
-      
+      const currentStatus = await this.redisService.getStatus(
+        dto.notification_id,
+      );
+
       if (!currentStatus) {
         return {
           success: false,

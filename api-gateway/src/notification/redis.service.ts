@@ -27,7 +27,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return exists === 1;
   }
 
-  async markProcessed(requestId: string, notificationId: string): Promise<void> {
+  async markProcessed(
+    requestId: string,
+    notificationId: string,
+  ): Promise<void> {
     await this.client.setEx(`request:${requestId}`, 3600, notificationId);
   }
 
@@ -39,11 +42,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     await this.client.setEx(
       `status:${notificationId}`,
       86400, // 24 hours
-      JSON.stringify(status)
+      JSON.stringify(status),
     );
   }
 
-  async getStatus(notificationId: string): Promise<any | null> {
+  async getStatus(notificationId: string): Promise<any> {
     const status = await this.client.get(`status:${notificationId}`);
     return status ? JSON.parse(status) : null;
   }

@@ -1,16 +1,14 @@
-import { Repository } from 'typeorm';
+// import { Repository } from 'typeorm';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TemplateService } from './template.service';
 import { Template } from './template.entity';
-import { RedisClientType } from 'redis';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { CreateTemplateDto } from './dto/template.dto';
 import { NotFoundException } from '@nestjs/common';
 
 describe('TemplateService', () => {
   let service: TemplateService;
-  let repository: Repository<Template>;
-  let redisClient: any;
+  // let repository: Repository<Template>;
 
   const mockRepository = {
     create: jest.fn(),
@@ -39,7 +37,7 @@ describe('TemplateService', () => {
     }).compile();
 
     service = module.get<TemplateService>(TemplateService);
-    repository = module.get<Repository<Template>>(getRepositoryToken(Template));
+    // const repository = module.get<Repository<Template>>(getRepositoryToken(Template));
 
     // Mock Redis client
     (service as any).redisClient = mockRedisClient;
@@ -144,8 +142,6 @@ describe('TemplateService', () => {
       });
       mockRedisClient.del.mockResolvedValue(1);
       mockRedisClient.setEx.mockResolvedValue('OK');
-
-      const result = await service.update('123ab', updatedDto);
     });
 
     it('should throw an error if template code is not found', async () => {

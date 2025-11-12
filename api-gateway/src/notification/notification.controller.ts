@@ -1,7 +1,24 @@
-import { Controller, Post, Body, Get, Param, UseGuards, Request } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
-import { CreateNotificationDto, UpdateStatusDto, ApiResponse as ApiResponseDto } from './dto/notification.dto';
+import {
+  CreateNotificationDto,
+  UpdateStatusDto,
+  ApiResponse as ApiResponseDto,
+} from './dto/notification.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('notifications')
@@ -17,7 +34,7 @@ export class NotificationController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async sendNotification(
     @Body() dto: CreateNotificationDto,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<ApiResponseDto<any>> {
     return this.notificationService.sendNotification(dto, req.user);
   }
@@ -25,16 +42,24 @@ export class NotificationController {
   @Get('status/:notification_id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get notification status (requires authentication)' })
+  @ApiOperation({
+    summary: 'Get notification status (requires authentication)',
+  })
   @ApiResponse({ status: 200, description: 'Status retrieved successfully' })
-  async getStatus(@Param('notification_id') notificationId: string): Promise<ApiResponseDto<any>> {
+  async getStatus(
+    @Param('notification_id') notificationId: string,
+  ): Promise<ApiResponseDto<any>> {
     return this.notificationService.getStatus(notificationId);
   }
 
   @Post('status')
-  @ApiOperation({ summary: 'Update notification status (internal use by worker services)' })
+  @ApiOperation({
+    summary: 'Update notification status (internal use by worker services)',
+  })
   @ApiResponse({ status: 200, description: 'Status updated successfully' })
-  async updateStatus(@Body() dto: UpdateStatusDto): Promise<ApiResponseDto<any>> {
+  async updateStatus(
+    @Body() dto: UpdateStatusDto,
+  ): Promise<ApiResponseDto<any>> {
     return this.notificationService.updateNotificationStatus(dto);
   }
 }

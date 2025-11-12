@@ -8,7 +8,7 @@ interface CircuitState {
 
 @Injectable()
 export class CircuitBreakerService {
-  private circuits: Map<String, CircuitState> = new Map();
+  private circuits: Map<string, CircuitState> = new Map();
   private readonly threshold = 5;
   private readonly timeout = 60000; // 1 minute
 

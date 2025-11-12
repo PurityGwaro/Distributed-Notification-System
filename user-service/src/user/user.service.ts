@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -30,7 +35,7 @@ export class UserService {
 
     await this.userRepository.save(user);
 
-    const { password, ...result } = user;
+    const { password: _password, ...result } = user;
     return {
       success: true,
       message: 'User created successfully',
@@ -47,13 +52,16 @@ export class UserService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
+    const isPasswordValid = await bcrypt.compare(
+      loginDto.password,
+      user.password,
+    );
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const { password, ...result } = user;
+    const { password: _password, ...result } = user;
     return {
       success: true,
       message: 'Login successful',
@@ -68,7 +76,7 @@ export class UserService {
       throw new NotFoundException('User not found');
     }
 
-    const { password, ...result } = user;
+    const { password: _password, ...result } = user;
     return {
       success: true,
       message: 'User retrieved successfully',
@@ -83,7 +91,7 @@ export class UserService {
       throw new NotFoundException('User not found');
     }
 
-    const { password, ...result } = user;
+    const { password: _password, ...result } = user;
     return {
       success: true,
       message: 'User retrieved successfully',
@@ -101,7 +109,7 @@ export class UserService {
     Object.assign(user, dto);
     await this.userRepository.save(user);
 
-    const { password, ...result } = user;
+    const { password: _password, ...result } = user;
     return {
       success: true,
       message: 'User updated successfully',
@@ -116,7 +124,9 @@ export class UserService {
       order: { created_at: 'DESC' },
     });
 
-    const sanitizedUsers = users.map(({ password, ...user }) => user);
+    const sanitizedUsers = users.map(
+      ({ password: _password, ...user }) => user,
+    );
 
     return {
       success: true,

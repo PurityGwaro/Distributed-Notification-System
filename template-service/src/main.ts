@@ -18,7 +18,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-   app.getHttpAdapter().get('/api-json', (req, res) => {
+  app.getHttpAdapter().get('/api-json', (req, res) => {
     res.json(document);
   });
 
@@ -27,4 +27,4 @@ async function bootstrap() {
   console.log(`Templste service running on port ${port}`);
 }
 
-bootstrap();
+void bootstrap();

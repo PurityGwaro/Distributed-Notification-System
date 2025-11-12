@@ -17,7 +17,7 @@ import { HealthModule } from './health/heath.module';
       synchronize: true, // set to true development only.
     }),
     TemplateModule,
-    HealthModule
+    HealthModule,
   ],
 })
 export class AppModule {}

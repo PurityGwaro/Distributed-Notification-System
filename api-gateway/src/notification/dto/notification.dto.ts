@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsUUID, IsString, IsOptional, IsInt, IsObject } from 'class-validator';
+import {
+  IsEnum,
+  IsUUID,
+  IsString,
+  IsOptional,
+  IsInt,
+  IsObject,
+} from 'class-validator';
 
 export enum NotificationType {
   EMAIL = 'email',
