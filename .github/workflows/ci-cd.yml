@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [api-gateway, user-service, email_service template-service]
+        service: [api-gateway, user-service, email_service, template-service]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -51,7 +51,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [api-gateway, user-service, template-service]
+        service: [api-gateway, user-service, email_service, template-service]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
