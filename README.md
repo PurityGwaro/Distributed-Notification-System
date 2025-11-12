@@ -1,98 +1,342 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Distributed Notification System
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
-
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+A microservices-based notification system built with NestJS that sends emails and push notifications using separate services. Services communicate asynchronously through RabbitMQ message queues.
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+This project implements a distributed notification system with the following services:
+- **API Gateway Service**: Entry point for all notification requests, handles authentication, validation, and routing
+- **User Service**: Manages user contact info, preferences, and authentication
 
-## Project setup
+Built with NestJS, PostgreSQL, Redis, and RabbitMQ.
 
-```bash
-$ npm install
+## Features
+
+- **API Gateway Service**
+  - Request validation and authentication
+  - Routes messages to appropriate queues (email/push)
+  - Tracks notification status via Redis
+  - Rate limiting per user
+  - Idempotency using request IDs
+
+- **User Service**
+  - User registration and authentication (JWT)
+  - User preferences management
+  - PostgreSQL database for user data
+  - REST API for user operations
+
+- **Technical Concepts Implemented**
+  - Message Queue (RabbitMQ)
+  - Caching (Redis)
+  - Idempotency
+  - Rate Limiting
+  - Health Checks
+  - CI/CD Pipeline
+
+## Architecture
+
+```
+┌─────────────────┐
+│   API Gateway   │
+│   (Port 3000)   │
+└────────┬────────┘
+         │
+    ┌────┴─────┐
+    ▼          ▼
+┌─────────┐  ┌──────────┐
+│  Redis  │  │PostgreSQL│
+└─────────┘  └──────────┘
+         │
+    ┌────┴─────────────┐
+    ▼                  ▼
+┌──────────┐    ┌──────────┐
+│Email Queue│    │Push Queue│
+└──────────┘    └──────────┘
+         │
+         ▼
+    ┌─────────────┐
+    │Failed Queue │
+    └─────────────┘
 ```
 
-## Compile and run the project
+## Prerequisites
+
+- Node.js (v20 or higher)
+- Docker and Docker Compose
+- PostgreSQL (or use Docker)
+- Redis (or use Docker)
+- RabbitMQ (or use Docker)
+
+## Project Setup
+
+### 1. Clone the repository
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+git clone <repository-url>
+cd notification-system
 ```
 
-## Run tests
+### 2. Install dependencies
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm install
 ```
 
-## Deployment
+### 3. Environment Configuration
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Create a `.env` file in the root directory:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+cp .env.example .env
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Update the `.env` file with your configuration:
 
-## Resources
+```env
+# Application
+NODE_ENV=development
+PORT=3000
 
-Check out a few resources that may come in handy when working with NestJS:
+# Database
+USER_DB_HOST=localhost
+USER_DB_PORT=5432
+USER_DB_USERNAME=postgres
+USER_DB_PASSWORD=postgres
+USER_DB_NAME=user_service
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
 
-## Support
+# RabbitMQ
+RABBITMQ_URL=amqp://guest:guest@localhost:5672
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+# JWT
+JWT_SECRET=your-secret-key-change-this-in-production
+JWT_EXPIRES_IN=1d
+```
 
-## Stay in touch
+## Running the Application
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Using Docker Compose (Recommended)
+
+```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+### Running Locally
+
+```bash
+# Start PostgreSQL, Redis, and RabbitMQ
+docker-compose up -d postgres redis rabbitmq
+
+# Development mode with hot reload
+npm run start:dev
+
+# Production mode
+npm run build
+npm run start:prod
+```
+
+## API Documentation
+
+Once the application is running, visit:
+
+- **Swagger Documentation**: http://localhost:3000/api/docs
+- **Health Check**: http://localhost:3000/health
+- **RabbitMQ Management**: http://localhost:15672 (guest/guest)
+
+## API Endpoints
+
+### Authentication
+
+```bash
+# Register a new user
+POST /api/v1/users
+{
+  "name": "John Doe",
+  "email": "user@example.com",
+  "password": "SecurePassword123!",
+  "push_token": "device_token",
+  "preferences": {
+    "email": true,
+    "push": true
+  }
+}
+
+# Login
+POST /api/v1/auth/login
+{
+  "email": "user@example.com",
+  "password": "SecurePassword123!"
+}
+```
+
+### Notifications
+
+```bash
+# Create notification (requires JWT token)
+POST /api/v1/notifications
+Authorization: Bearer <token>
+{
+  "notification_type": "email",
+  "user_id": "uuid",
+  "template_code": "welcome_email",
+  "variables": {
+    "name": "John Doe",
+    "link": "https://example.com/verify"
+  },
+  "request_id": "req_123456789",
+  "priority": 1
+}
+
+# Get notification status
+GET /api/v1/notifications/:id
+Authorization: Bearer <token>
+```
+
+### User Management
+
+```bash
+# Get all users (paginated)
+GET /api/v1/users?page=1&limit=10
+Authorization: Bearer <token>
+
+# Get user by ID
+GET /api/v1/users/:id
+Authorization: Bearer <token>
+
+# Update user
+PATCH /api/v1/users/:id
+Authorization: Bearer <token>
+
+# Delete user
+DELETE /api/v1/users/:id
+Authorization: Bearer <token>
+```
+
+## Testing
+
+```bash
+# Unit tests
+npm run test
+
+# E2E tests
+npm run test:e2e
+
+# Test coverage
+npm run test:cov
+```
+
+## CI/CD Pipeline
+
+The project includes a GitHub Actions workflow that:
+
+1. **Lint**: Runs ESLint and format checking
+2. **Test**: Runs unit tests and generates coverage
+3. **Build**: Builds Docker image and pushes to registry
+4. **Deploy**: Deploys to staging/production based on branch
+
+### Required GitHub Secrets
+
+- `SSH_PRIVATE_KEY`: SSH key for server access
+- `SERVER_HOST`: Production server hostname
+- `SERVER_USER`: SSH username
+- `STAGING_HOST`: Staging server hostname
+- `STAGING_USER`: Staging SSH username
+
+## Project Structure
+
+```
+src/
+├── common/
+│   ├── decorators/
+│   ├── filters/
+│   ├── guards/
+│   ├── interceptors/
+│   ├── interfaces/
+│   └── utils/
+├── config/
+│   ├── database.config.ts
+│   ├── redis.config.ts
+│   └── rabbitmq.config.ts
+├── api-gateway/
+│   ├── controllers/
+│   ├── dto/
+│   ├── services/
+│   └── api-gateway.module.ts
+├── user/
+│   ├── controllers/
+│   ├── dto/
+│   ├── entities/
+│   ├── services/
+│   └── user.module.ts
+└── main.ts
+```
+
+## RabbitMQ Queue Structure
+
+```
+Exchange: notifications.direct
+├── email.queue  → Email Service
+├── push.queue   → Push Service
+└── failed.queue → Dead Letter Queue
+```
+
+## Response Format
+
+All API responses follow this format:
+
+```json
+{
+  "success": true,
+  "message": "Request successful",
+  "data": {},
+  "meta": {
+    "total": 100,
+    "limit": 10,
+    "page": 1,
+    "total_pages": 10,
+    "has_next": true,
+    "has_previous": false
+  }
+}
+```
+
+## Performance Targets
+
+- Handle 1,000+ notifications per minute
+- API Gateway response under 100ms
+- 99.5% delivery success rate
+- Supports horizontal scaling
+
+## Technologies Used
+
+- **Framework**: NestJS
+- **Language**: TypeScript
+- **Database**: PostgreSQL
+- **Cache**: Redis
+- **Message Queue**: RabbitMQ
+- **Authentication**: JWT
+- **Validation**: class-validator
+- **Documentation**: Swagger/OpenAPI
+- **Containerization**: Docker
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+This project is licensed under the MIT License.

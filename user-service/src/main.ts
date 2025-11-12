@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -10,21 +10,21 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
   const config = new DocumentBuilder()
-    .setTitle('Template service API')
-    .setDescription('Template management service')
+    .setTitle('User Service API')
+    .setDescription('User Management Service')
     .setVersion('1.0')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-   app.getHttpAdapter().get('/api-json', (req, res) => {
+  app.getHttpAdapter().get('/api-json', (req, res) => {
     res.json(document);
   });
 
-  const port = process.env.PORT || 3004;
+  const port = process.env.PORT || 3001;
   await app.listen(port);
-  console.log(`Templste service running on port ${port}`);
+  console.log(`User Service running on port ${port}`);
+  console.log(`Swagger docs available at http://localhost:${port}/api/docs`);
 }
-
 bootstrap();

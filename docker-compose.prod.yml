@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database for User Service
+  postgres:
+    image: postgres:16-alpine
+    container_name: notification-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-user_service}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notification-network
+    restart: always
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: notification-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - notification-network
+    restart: always
+
+  # RabbitMQ for message queuing
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: notification-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notification-network
+    restart: always
+
+  # User Service Microservice
+  user-service:
+    image: ${USER_SERVICE_IMAGE:-ghcr.io/puritygwaro/distributed-notification-system:main-user-service}
+    container_name: notification-user-service
+    environment:
+      NODE_ENV: production
+      USER_DB_HOST: postgres
+      USER_DB_PORT: 5432
+      USER_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      USER_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      USER_DB_NAME: ${POSTGRES_DB:-user_service}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - notification-network
+    restart: always
+
+  # API Gateway
+  api-gateway:
+    image: ${API_GATEWAY_IMAGE:-ghcr.io/puritygwaro/distributed-notification-system:main-api-gateway}
+    container_name: notification-api-gateway
+    environment:
+      NODE_ENV: production
+      API_GATEWAY_PORT: 3000
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      RABBITMQ_EXCHANGE: notifications.direct
+      RABBITMQ_EMAIL_QUEUE: email.queue
+      RABBITMQ_PUSH_QUEUE: push.queue
+      RABBITMQ_FAILED_QUEUE: failed.queue
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+    ports:
+      - "3000:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+    networks:
+      - notification-network
+    restart: always
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+
+networks:
+  notification-network:
+    driver: bridge
