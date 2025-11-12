@@ -20,9 +20,8 @@ import { Email } from './modules/emaail/entities/email.entity';
       username: process.env.DB_USER,
       password: process.env.DB_PASS,
       database: process.env.DB_NAME,
-      entities: [Email], // you can also use glob pattern like __dirname + '/**/*.entity{.ts,.js}'
-      synchronize: false, // ⚠️ disable in production
-      logging: ['error'], // log only errors in production
+      entities: [Email],
+      logging: ['error'],
     }),
 
     // RabbitMQ service module
