@@ -107,7 +107,7 @@ jobs:
       - name: Build and push ${{ matrix.service }} image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./${{ matrix.service }}
           push: true
           build-args: |
             SERVICE_NAME=${{ matrix.service }}
