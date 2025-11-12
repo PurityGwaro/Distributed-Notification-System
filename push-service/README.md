@@ -35,7 +35,7 @@ cp .env.example .env
 
 Configure the following environment variables:
 
-- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASS`, `DB_NAME` - PostgreSQL connection
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` - PostgreSQL connection
 - `RABBITMQ_URL` - RabbitMQ connection URL
 - `FCM_CREDENTIALS` - Firebase Admin SDK credentials (JSON string)
 - `NODE_ENV` - Environment (development/production)
