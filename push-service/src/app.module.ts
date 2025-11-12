@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { RabbitmqModule } from './modules/rabbitmq/rabbitmq.module';
+import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { ConfigModule } from '@nestjs/config';
-import { EmailModule } from './modules/emaail/email.module';
+import { PushModule } from './push/push.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Email } from './modules/emaail/entities/email.entity';
+import { Notification } from './database/entities/notification.entity';
 import { HealthModule } from './health/health.module';
 
 @Module({
@@ -21,15 +21,16 @@ import { HealthModule } from './health/health.module';
       username: process.env.DB_USER,
       password: process.env.DB_PASS,
       database: process.env.DB_NAME,
-      entities: [Email],
+      entities: [Notification],
+      synchronize: process.env.NODE_ENV !== 'production',
       logging: ['error'],
     }),
 
     // RabbitMQ service module
     RabbitmqModule,
 
-    // Feature module containing EmailService
-    EmailModule,
+    // Push notification module
+    PushModule,
 
     // Health check module
     HealthModule,

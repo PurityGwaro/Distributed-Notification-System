@@ -95,7 +95,7 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
   // Consume messages with callback and prefetch control
   async consume(
     queue: string,
-    callback: (msg: any) => Promise<void> | void,
+    callback: (msg: any, message?: amqp.ConsumeMessage) => Promise<void> | void,
     prefetch = 5,
   ) {
     if (!this.channel) {
@@ -111,7 +111,8 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
         void (async () => {
           try {
             const content = JSON.parse(message.content.toString());
-            await callback(content);
+            // Pass both content and message object to callback
+            await callback(content, message);
             this.channel.ack(message);
           } catch (err) {
             this.logger.error('failed to process message:', err.message);
