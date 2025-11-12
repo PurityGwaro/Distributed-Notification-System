@@ -1,36 +1,31 @@
-# Multi-service Dockerfile for CI/CD
-ARG SERVICE_NAME=api-gateway
-
-# Base image
-FROM node:20-alpine AS base
+# Base image for dependencies
+FROM node:20-alpine AS dependencies
 WORKDIR /app
 COPY package*.json ./
-COPY nest-cli.json ./
-COPY tsconfig*.json ./
-
-# Dependencies stage
-FROM base AS dependencies
-RUN npm ci --only=production
-RUN cp -R node_modules /tmp/node_modules
-RUN npm ci
+RUN npm ci --only=production && \
+    cp -R node_modules /tmp/node_modules && \
+    npm ci
 
 # Build stage
-FROM base AS build
-ARG SERVICE_NAME
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
 COPY --from=dependencies /app/node_modules ./node_modules
-COPY apps/${SERVICE_NAME} ./apps/${SERVICE_NAME}
-COPY libs ./libs
-RUN npm run build:${SERVICE_NAME}
+COPY tsconfig*.json ./
+COPY nest-cli.json ./
+COPY src ./src
+COPY test ./test
+RUN npm run build
 
 # Production image
 FROM node:20-alpine AS production
-ARG SERVICE_NAME
 RUN apk add --no-cache dumb-init
 WORKDIR /app
 COPY --from=dependencies /tmp/node_modules ./node_modules
-COPY --from=build /app/dist/apps/${SERVICE_NAME} ./dist
+COPY --from=build /app/dist ./dist
 COPY package*.json ./
-RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
 USER nodejs
 EXPOSE 3000
 CMD ["dumb-init", "node", "dist/main"]

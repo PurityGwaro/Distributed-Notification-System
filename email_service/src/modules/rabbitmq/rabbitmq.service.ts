@@ -9,8 +9,8 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
-  private connection: amqp.Connection;
-  private channel: amqp.Channel;
+  private connection: any = null;
+  private channel: any = null;
   private readonly logger = new Logger(RabbitmqService.name);
   private isConnecting = false;
 
