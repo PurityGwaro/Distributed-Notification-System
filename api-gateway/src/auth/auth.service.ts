@@ -16,7 +16,6 @@ export class AuthService {
       const userServiceUrl =
         process.env.USER_SERVICE_URL || 'http://localhost:3001';
 
-      Call User Service to validate credentials
       const response = await firstValueFrom(
         this.httpService.post(`${userServiceUrl}/api/v1/users/login`, loginDto),
       );
