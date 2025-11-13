@@ -1,40 +1,9 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { RabbitmqModule } from './modules/rabbitmq/rabbitmq.module';
-import { ConfigModule } from '@nestjs/config';
-import { EmailModule } from './modules/emaail/email.module';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Email } from './modules/emaail/entities/email.entity';
+import { HttpModule } from '@nestjs/axios';
 import { HealthModule } from './health/health.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
-  imports: [
-    // Load environment variables globally
-    ConfigModule.forRoot({ isGlobal: true }),
-
-    // TypeORM setup for production
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST,
-      port: +process.env.DB_PORT,
-      username: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      entities: [Email],
-      logging: ['error'],
-    }),
-
-    // RabbitMQ service module
-    RabbitmqModule,
-
-    // Feature module containing EmailService
-    EmailModule,
-
-    // Health check module
-    HealthModule,
-  ],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [HttpModule, EmailModule, HealthModule],
 })
 export class AppModule {}

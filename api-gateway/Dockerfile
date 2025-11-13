@@ -20,7 +20,7 @@ RUN npm install -g @nestjs/cli
 RUN npm run build
 
 # Expose the correct port
-EXPOSE 3004
+EXPOSE 3000
 
 # Start the production build
 CMD ["npm", "run", "start:prod"]

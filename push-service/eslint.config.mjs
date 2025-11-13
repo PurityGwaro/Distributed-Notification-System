@@ -47,7 +47,7 @@ export default tseslint.config(
       // Allow async methods without await in lifecycle hooks
       '@typescript-eslint/require-await': 'off',
       '@typescript-eslint/no-floating-promises': 'error',
-      'prettier/prettier': ['error', { endOfLine: 'auto' }],
+      "prettier/prettier": ["error", { endOfLine: "auto" }],
     },
   },
 );

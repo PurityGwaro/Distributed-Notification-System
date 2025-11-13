@@ -1,135 +1,278 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Notification } from '../database/entities/notification.entity';
-import * as admin from 'firebase-admin';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
+import * as Handlebars from 'handlebars';
+import * as amqp from 'amqp-connection-manager';
+import { ChannelWrapper } from 'amqp-connection-manager';
+import { createClient, RedisClientType } from 'redis';
 
-export interface SendPushPayload {
-  device_token: string;
-  title: string;
-  body: string;
-  data?: any;
-  request_id?: string;
-  correlation_id?: string;
+enum NotificationStatus {
+  PENDING = 'pending',
+  PROCESSING = 'processing',
+  DELIVERED = 'delivered',
+  FAILED = 'failed',
+  RETRYING = 'retrying',
+}
+
+interface OneSignalResponse {
+  id: string;
+  recipients: number;
+}
+
+interface ApiGatewayResponse {
+  success: boolean;
+  message: string;
 }
 
 @Injectable()
-export class PushService {
-  private readonly logger = new Logger(PushService.name);
+export class PushService implements OnModuleInit, OnModuleDestroy {
+  private connection: amqp.AmqpConnectionManager;
+  private channelWrapper: ChannelWrapper;
+  private retryAttempts = new Map<string, number>();
+  private redisClient: RedisClientType;
 
-  constructor(
-    @InjectRepository(Notification)
-    private readonly notificationRepo: Repository<Notification>,
-  ) {
-    // Initialize Firebase Admin SDK once
-    if (!admin.apps.length) {
-      try {
-        admin.initializeApp({
-          credential: admin.credential.cert(
-            JSON.parse(process.env.FCM_CREDENTIALS),
-          ),
-        });
-        this.logger.log('Firebase Admin SDK initialized successfully');
-      } catch (error) {
-        this.logger.error(
-          `Failed to initialize Firebase Admin SDK: ${error.message}`,
-        );
-      }
-    }
+  constructor(private readonly httpService: HttpService) {}
+
+  async onModuleInit() {
+    await this.connectRedis();
+    await this.connectRabbitMQ();
   }
 
-  /**
-   * Send push notification with idempotency support
-   */
-  async sendPush(payload: SendPushPayload, retryCount = 0): Promise<any> {
-    const correlationId = payload.correlation_id || 'N/A';
-    const logPrefix = `[CID:${correlationId}]`;
+  private async connectRedis() {
+    const redisHost = process.env.REDIS_HOST || 'redis';
+    const redisPort = parseInt(process.env.REDIS_PORT || '6379');
 
-    // Check for idempotency - if request_id exists, return existing result
-    if (payload.request_id) {
-      const existing = await this.notificationRepo.findOne({
-        where: { request_id: payload.request_id },
-      });
-
-      if (existing) {
-        this.logger.log(
-          `${logPrefix} Duplicate request detected: ${payload.request_id}. Returning existing result.`,
-        );
-        return {
-          success: true,
-          message: 'Notification already processed',
-          notificationId: existing.id,
-          status: existing.status,
-        };
-      }
-    }
-
-    // Create notification in DB
-    const notification = this.notificationRepo.create({
-      device_token: payload.device_token,
-      title: payload.title,
-      body: payload.body,
-      data: payload.data || {},
-      status: 'pending',
-      retry_count: retryCount,
-      request_id: payload.request_id,
-      correlation_id: correlationId,
+    this.redisClient = createClient({
+      socket: {
+        host: redisHost,
+        port: redisPort,
+      },
     });
-    await this.notificationRepo.save(notification);
+
+    this.redisClient.on('error', (err) =>
+      console.error('Redis Client Error', err),
+    );
+    this.redisClient.on('connect', () =>
+      console.log('Push Service: Redis connected'),
+    );
+
+    await this.redisClient.connect();
+  }
+
+  private async connectRabbitMQ() {
+    const rabbitMQUrl =
+      process.env.RABBITMQ_URL || 'amqp://admin:admin@localhost:5672';
+
+    this.connection = amqp.connect([rabbitMQUrl]);
+
+    this.channelWrapper = this.connection.createChannel({
+      json: true,
+      setup: async (channel: any) => {
+        await channel.assertQueue('push.queue', { durable: true });
+        await channel.assertQueue('failed.queue', { durable: true });
+
+        await channel.prefetch(1);
+        await channel.consume('push.queue', async (msg: any) => {
+          if (msg) {
+            await this.processPushMessage(msg, channel);
+          }
+        });
+      },
+    });
+
+    await this.channelWrapper.waitForConnect();
+    console.log('Push Service connected to RabbitMQ');
+  }
+
+  private async processPushMessage(msg: any, channel: any) {
+    const message = JSON.parse(msg.content.toString());
+    const correlationId = message.notification_id;
 
     try {
-      const message = {
-        token: payload.device_token,
-        notification: {
-          title: payload.title,
-          body: payload.body,
+      console.log(`Processing push notification: ${correlationId}`);
+
+      if (!message.user_push_token) {
+        throw new Error('No push token available for user');
+      }
+
+      await this.updateStatus(correlationId, NotificationStatus.PROCESSING);
+
+      const titleTemplate = Handlebars.compile(
+        message.template.subject || 'Notification',
+      );
+      const bodyTemplate = Handlebars.compile(message.template.content);
+
+      const title = titleTemplate(message.variables);
+      const body = bodyTemplate(message.variables);
+
+      const fcmResponse = await this.sendPushNotification({
+        token: message.user_push_token,
+        title,
+        body,
+        data: message.metadata,
+      });
+
+      console.log(`Push notification sent successfully: ${correlationId}`);
+
+      await this.updateStatus(
+        correlationId,
+        NotificationStatus.DELIVERED,
+        null,
+        {
+          fcm_message_id: fcmResponse?.messageId,
+          device_token: message.user_push_token,
         },
-        data: payload.data || {},
-      };
+      );
 
-      const response = await admin.messaging().send(message);
+      channel.ack(msg);
+      this.retryAttempts.delete(correlationId);
+    } catch (error: any) {
+      console.error(`Failed to send push notification: ${error.message}`);
 
-      // Update status in DB
-      notification.status = 'sent';
-      await this.notificationRepo.save(notification);
+      const attempts = this.retryAttempts.get(correlationId) || 0;
 
-      this.logger.log(`${logPrefix} Push sent successfully: ${response}`);
-      return {
-        success: true,
-        messageId: response,
-        notificationId: notification.id,
-      };
-    } catch (error) {
-      notification.status = 'failed';
-      notification.error_message = error.message;
-      notification.retry_count = retryCount;
-      await this.notificationRepo.save(notification);
+      if (attempts < 3) {
+        this.retryAttempts.set(correlationId, attempts + 1);
+        const delay = Math.pow(2, attempts) * 1000;
 
-      this.logger.error(`${logPrefix} Failed to send push: ${error.message}`);
-      throw error; // Re-throw to trigger retry logic in consumer
+        await this.updateStatus(
+          correlationId,
+          NotificationStatus.RETRYING,
+          `Retry attempt ${attempts + 1}/3: ${error.message}`,
+        );
+
+        setTimeout(() => {
+          channel.nack(msg, false, true);
+        }, delay);
+
+        console.log(
+          `Retrying push (attempt ${attempts + 1}/3) after ${delay}ms`,
+        );
+      } else {
+        console.log(`Moving to dead letter queue: ${correlationId}`);
+        await channel.sendToQueue('failed.queue', Buffer.from(msg.content), {
+          persistent: true,
+        });
+
+        await this.updateStatus(
+          correlationId,
+          NotificationStatus.FAILED,
+          `Failed after 3 attempts: ${error.message}`,
+        );
+
+        channel.ack(msg);
+        this.retryAttempts.delete(correlationId);
+      }
     }
   }
 
-  /**
-   * Backward compatibility method
-   */
-  async sendPushLegacy(payload: any, retryCount = 0): Promise<any> {
-    return this.sendPush(
-      {
-        device_token: payload.device_token,
-        title: payload.title,
-        body: payload.body,
-        data: payload.data,
-      },
-      retryCount,
-    );
+  private async sendPushNotification(payload: any) {
+    const oneSignalAppId = process.env.ONESIGNAL_APP_ID;
+    const oneSignalApiKey = process.env.ONESIGNAL_API_KEY;
+
+    if (!oneSignalAppId || !oneSignalApiKey) {
+      console.warn('OneSignal not configured - simulating push send');
+      return { messageId: `simulated_${Date.now()}` };
+    }
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post<OneSignalResponse>(
+          'https://onesignal.com/api/v1/notifications',
+          {
+            app_id: oneSignalAppId,
+            include_player_ids: [payload.token],
+            headings: { en: payload.title },
+            contents: { en: payload.body },
+            data: payload.data,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Basic ${oneSignalApiKey}`,
+            },
+          },
+        ),
+      );
+
+      // @ts-ignore - Response type from axios
+      return { messageId: response.data.id };
+    } catch (error: any) {
+      console.error(
+        'OneSignal API Error:',
+
+        error.response?.data || error.message,
+      );
+      throw new Error(`OneSignal send failed: ${error.message}`);
+    }
   }
 
-  async getNotificationStatus(notificationId: string): Promise<Notification> {
-    return this.notificationRepo.findOne({ where: { id: notificationId } });
+  private async updateStatus(
+    notificationId: string,
+    status: NotificationStatus,
+    error?: string,
+    metadata?: any,
+  ) {
+    try {
+      // Fix: Properly type Redis response
+      // @ts-ignore
+      const currentStatus: string | null = await this.redisClient.get(
+        `status:${notificationId}`,
+      );
+
+      if (currentStatus) {
+        const statusObj = JSON.parse(currentStatus);
+        const updatedStatus = {
+          ...statusObj,
+          status: status,
+          updated_at: new Date().toISOString(),
+          error: error || statusObj.error,
+          metadata: metadata || statusObj.metadata,
+          attempts:
+            (statusObj.attempts || 0) +
+            (status === NotificationStatus.RETRYING ? 1 : 0),
+        };
+
+        await this.redisClient.setEx(
+          `status:${notificationId}`,
+          86400,
+          JSON.stringify(updatedStatus),
+        );
+
+        console.log(`Status updated in Redis: ${notificationId} -> ${status}`);
+      }
+
+      const apiGatewayUrl =
+        process.env.API_GATEWAY_URL || 'http://localhost:3000';
+      try {
+        await firstValueFrom(
+          this.httpService.post<ApiGatewayResponse>(
+            `${apiGatewayUrl}/api/v1/notifications/status`,
+            {
+              notification_id: notificationId,
+              status: status,
+              error: error,
+              metadata: metadata,
+            },
+          ),
+        );
+        console.log(
+          `Status updated via API Gateway: ${notificationId} -> ${status}`,
+        );
+      } catch (apiError: any) {
+        console.warn(
+          'Failed to update status via API Gateway (non-critical):',
+          apiError.message,
+        );
+      }
+    } catch (err: any) {
+      console.error('Failed to update status:', err.message);
+    }
   }
 
-  async getNotificationsByStatus(status: string): Promise<Notification[]> {
-    return this.notificationRepo.find({ where: { status } });
+  async onModuleDestroy() {
+    await this.channelWrapper.close();
+    await this.connection.close();
+    await this.redisClient.quit();
   }
 }

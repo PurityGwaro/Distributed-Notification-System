@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
-import { PushService } from './push.service';
+import { EmailService } from './email.service';
 
 @Module({
   imports: [HttpModule],
-  providers: [PushService],
+  providers: [EmailService],
 })
-export class PushModule {}
+export class EmailModule {}
