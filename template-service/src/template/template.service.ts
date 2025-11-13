@@ -1,5 +1,7 @@
 import {
+  ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
@@ -13,6 +15,7 @@ import { CreateTemplateDto, UpdateTemplateDto } from './dto/template.dto';
 @Injectable()
 export class TemplateService implements OnModuleInit, OnModuleDestroy {
   private redisClient: RedisClientType;
+  private readonly logger = new Logger(TemplateService.name);
 
   constructor(
     @InjectRepository(Template)
@@ -22,26 +25,49 @@ export class TemplateService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     const redisHost = process.env.REDIS_HOST || 'redis';
     const redisPort = parseInt(process.env.REDIS_PORT || '6379');
+    const redisPassword = process.env.REDIS_PASSWORD;
 
     this.redisClient = createClient({
       socket: { host: redisHost, port: redisPort },
+      ...(redisPassword && { password: redisPassword }),
     });
 
-    await this.redisClient.connect();
-    console.log('Template service redis connected successfully.');
+    try {
+      await this.redisClient.connect();
+      console.log('Template service redis connected successfully.');
+    } catch (error) {
+      console.error('Failed to connect to Redis:', error);
+      throw error;
+    }
   }
 
   async create(dto: CreateTemplateDto) {
-    const template = this.templateRepository.create(dto);
-    await this.templateRepository.save(template);
+    try {
+      const template = this.templateRepository.create(dto);
+      const savedTemplate = await this.templateRepository.save(template);
 
-    await this.cacheTemplate(template);
+      try {
+        await this.cacheTemplate(savedTemplate);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to cache template ${savedTemplate.code}:`,
+          error,
+        );
+      }
 
-    return {
-      success: true,
-      message: 'Template created successfully',
-      data: template,
-    };
+      return {
+        success: true,
+        message: 'Template created successfully',
+        data: savedTemplate,
+      };
+    } catch (error) {
+      if (error.code === '23505') {
+        throw new ConflictException(
+          `Template with code '${dto.code}' already exists`,
+        );
+      }
+      throw error;
+    }
   }
 
   async findByCode(code: string) {
