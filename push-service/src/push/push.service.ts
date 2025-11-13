@@ -195,7 +195,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         ),
       );
 
-      // @ts-ignore - Response type from axios
       return { messageId: response.data.id };
     } catch (error: any) {
       console.error(
@@ -215,7 +214,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   ) {
     try {
       // Fix: Properly type Redis response
-      // @ts-ignore
       const currentStatus: string | null = await this.redisClient.get(
         `status:${notificationId}`,
       );

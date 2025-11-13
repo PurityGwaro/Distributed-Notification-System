@@ -176,7 +176,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       const currentStatus = await this.redisClient.get(`status:${notificationId}`);
       
       if (currentStatus) {
-        // @ts-ignore
         const statusObj = JSON.parse(currentStatus);
         const updatedStatus = {
           ...statusObj,
