@@ -16,7 +16,7 @@ export class AuthService {
       const userServiceUrl =
         process.env.USER_SERVICE_URL || 'http://localhost:3001';
 
-      // Call User Service to validate credentials
+      Call User Service to validate credentials
       const response = await firstValueFrom(
         this.httpService.post(`${userServiceUrl}/api/v1/users/login`, loginDto),
       );
@@ -26,8 +26,6 @@ export class AuthService {
       }
 
       const user = response.data.data;
-
-      // Generate JWT token
       const payload = {
         sub: user.id,
         email: user.email,

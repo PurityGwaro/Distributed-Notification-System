@@ -39,7 +39,6 @@ export class RateLimitMiddleware implements NestMiddleware {
   }
 
   private getIdentifier(req: Request): string {
-    // Use user ID if authenticated, otherwise use IP address
     const user = (req as any).user;
     return user?.userId || req.ip || 'anonymous';
   }

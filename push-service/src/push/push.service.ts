@@ -213,7 +213,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     metadata?: any,
   ) {
     try {
-      // Fix: Properly type Redis response
       const currentStatus: string | null = await this.redisClient.get(
         `status:${notificationId}`,
       );

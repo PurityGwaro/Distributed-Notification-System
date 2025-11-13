@@ -90,11 +90,8 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
     try {
       console.log(`Processing email for notification: ${correlationId}`);
-
-      // Update status to PROCESSING
       await this.updateStatus(correlationId, NotificationStatus.PROCESSING);
 
-      // Compile template
       const titleTemplate = Handlebars.compile(message.template.subject || 'Notification');
       const bodyTemplate = Handlebars.compile(message.template.content);
       
@@ -172,7 +169,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     metadata?: any
   ) {
     try {
-      // Option 1: Direct Redis update (faster)
       const currentStatus = await this.redisClient.get(`status:${notificationId}`);
       
       if (currentStatus) {
@@ -195,8 +191,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         console.log(`Status updated in Redis: ${notificationId} -> ${status}`);
       }
 
-      // Option 2: Also call API Gateway (optional - for centralized logging)
-      const apiGatewayUrl = process.env.API_GATEWAY_URL || 'http://localhost:3000';
+           const apiGatewayUrl = process.env.API_GATEWAY_URL || 'http://localhost:3000';
       try {
         await firstValueFrom(
           this.httpService.post(`${apiGatewayUrl}/api/v1/notifications/status`, {

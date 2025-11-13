@@ -1,4 +1,3 @@
-// import { Repository } from 'typeorm';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TemplateService } from './template.service';
 import { Template } from './template.entity';
@@ -8,7 +7,7 @@ import { NotFoundException } from '@nestjs/common';
 
 describe('TemplateService', () => {
   let service: TemplateService;
-  // let repository: Repository<Template>;
+  
 
   const mockRepository = {
     create: jest.fn(),

@@ -32,7 +32,6 @@ export class NotificationService {
     correlationId?: string,
   ): Promise<ApiResponse<any>> {
     try {
-      // Check for duplicate request (idempotency)
       const isDuplicate = await this.redisService.checkDuplicate(
         dto.request_id,
       );
@@ -47,7 +46,6 @@ export class NotificationService {
         };
       }
 
-      // Validate user exists and get preferences
       const userServiceUrl =
         process.env.USER_SERVICE_URL || 'http://localhost:3001';
       const userResponse = await firstValueFrom(
@@ -60,15 +58,12 @@ export class NotificationService {
 
       const targetUser = userResponse.data.data;
 
-      // Check authorization - users can only send notifications to themselves
-      // (In production, you'd have role-based permissions)
       if (user.userId !== dto.user_id) {
         throw new ForbiddenException(
           'You can only send notifications to yourself',
         );
       }
 
-      // Check user preferences
       if (
         dto.notification_type === NotificationType.EMAIL &&
         !targetUser.preferences.email
@@ -89,7 +84,6 @@ export class NotificationService {
         };
       }
 
-      // Get template
       const templateServiceUrl =
         process.env.TEMPLATE_SERVICE_URL || 'http://localhost:3004';
       const templateResponse = await firstValueFrom(
@@ -102,10 +96,8 @@ export class NotificationService {
         throw new BadRequestException('Template not found');
       }
 
-      // Generate notification ID
       const notificationId = uuidv4();
 
-      // Prepare message
       const message = {
         notification_id: notificationId,
         request_id: dto.request_id,
@@ -119,7 +111,6 @@ export class NotificationService {
         timestamp: new Date().toISOString(),
       };
 
-      // Route to appropriate queue
       const queue =
         dto.notification_type === NotificationType.EMAIL
           ? 'email_queue'
@@ -132,10 +123,8 @@ export class NotificationService {
         });
       }, 'rabbitmq');
 
-      // Mark request as processed
       await this.redisService.markProcessed(dto.request_id, notificationId);
 
-      // Store initial status
       await this.redisService.setStatus(notificationId, {
         status: NotificationStatus.PENDING,
         created_at: new Date().toISOString(),
