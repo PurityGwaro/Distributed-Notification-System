@@ -6,7 +6,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private client: RedisClientType;
 
   async onModuleInit() {
-    const redisHost = process.env.REDIS_HOST || 'localhost';
+    const redisHost = process.env.REDIS_HOST || 'redis';
     const redisPort = parseInt(process.env.REDIS_PORT || '6379');
 
     this.client = createClient({

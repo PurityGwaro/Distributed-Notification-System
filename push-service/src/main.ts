@@ -1,24 +1,29 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import * as dotenv from 'dotenv';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-
-dotenv.config();
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Swagger setup
+  app.enableCors();
+  app.useGlobalPipes(new ValidationPipe({ transform: true }));
+
   const config = new DocumentBuilder()
-    .setTitle('Notification Push Service')
-    .setDescription('Push notification microservice API docs')
+    .setTitle('Push Service API')
+    .setDescription('Push Notification Service')
     .setVersion('1.0')
     .build();
+
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('api/docs', app, document);
 
-  await app.listen(3002);
-  console.log('Push Service running on http://localhost:3002');
+  app.getHttpAdapter().get('/api-json', (req, res) => {
+    res.json(document);
+  });
+
+  const port = process.env.PORT || 3002;
+  await app.listen(port, '0.0.0.0');
+  console.log(`Push Service running on port ${port}`);
 }
-
 void bootstrap();
