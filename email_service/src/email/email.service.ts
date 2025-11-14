@@ -112,14 +112,15 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     this.connection.on('disconnect', (err) =>
       console.error(
         '❌ RabbitMQ disconnected:',
-        // @ts-expect-error
+        // @ts-expect-error: RabbitMQ error type is unknown and may not contain "message"
         err?.message || 'Unknown error',
       ),
     );
+
     this.connection.on('connectFailed', (err) =>
       console.error(
         '❌ RabbitMQ connection failed:',
-        // @ts-expect-error
+        // @ts-expect-error: RabbitMQ error type does not strictly match TypeScript's expected shape
         err?.message || 'Unknown error',
       ),
     );
