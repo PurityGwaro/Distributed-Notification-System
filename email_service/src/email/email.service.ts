@@ -112,14 +112,14 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     this.connection.on('disconnect', (err) =>
       console.error(
         '❌ RabbitMQ disconnected:',
-        // @ts-ignore
+        // @ts-expect-error
         err?.message || 'Unknown error',
       ),
     );
     this.connection.on('connectFailed', (err) =>
       console.error(
         '❌ RabbitMQ connection failed:',
-        // @ts-ignore
+        // @ts-expect-error
         err?.message || 'Unknown error',
       ),
     );
@@ -153,7 +153,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         // Start consuming
         const consumerTag = await channel.consume(
           'email.queue',
-          async (msg: ConsumeMessage | null) => {
+          async (msg: any) => {
             if (msg) {
               console.log('\n' + '='.repeat(60));
               console.log('🎉 MESSAGE RECEIVED FROM QUEUE!');
