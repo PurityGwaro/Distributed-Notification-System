@@ -8,12 +8,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     const redisHost = process.env.REDIS_HOST || 'redis';
     const redisPort = parseInt(process.env.REDIS_PORT || '6379');
+    const redisPassword = process.env.REDIS_PASSWORD;
 
     this.client = createClient({
-      socket: {
-        host: redisHost,
-        port: redisPort,
-      },
+      socket: { host: redisHost, port: redisPort },
+      ...(redisPassword && { password: redisPassword }),
     });
 
     this.client.on('error', (err) => console.error('Redis Client Error', err));
