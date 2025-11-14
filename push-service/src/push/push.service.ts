@@ -47,6 +47,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         host: redisHost,
         port: redisPort,
       },
+      password: process.env.REDIS_PASSWORD,
     });
 
     this.redisClient.on('error', (err) =>
