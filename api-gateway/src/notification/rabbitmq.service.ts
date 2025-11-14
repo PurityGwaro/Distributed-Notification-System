@@ -17,15 +17,14 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     this.channelWrapper = this.connection.createChannel({
       json: true,
       setup: async (channel: ConfirmChannel) => {
-        await channel.assertExchange('notifications.direct', 'direct', {
+        await channel.assertQueue('email.queue', {
           durable: true,
+          arguments: {
+            'x-message-ttl': 86400000,
+          },
         });
-        await channel.assertQueue('email_queue', { durable: true });
-        await channel.assertQueue('push_queue', { durable: true });
-        await channel.assertQueue('failed_queue', { durable: true });
-
-        await channel.bindQueue('email_queue', 'notifications.direct', 'email');
-        await channel.bindQueue('push_queue', 'notifications.direct', 'push');
+        await channel.assertQueue('push.queue', { durable: true });
+        await channel.assertQueue('failed.queue', { durable: true });
       },
     });
 
@@ -38,8 +37,8 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     message: any,
     headers?: Record<string, any>,
   ): Promise<void> {
-    const routingKey = queue.split('_')[0]; // email_queue -> email, push_queue -> push
     const options: Options.Publish = {
+      // Use Options.Publish type
       persistent: true,
       headers: {
         request_id: message.request_id || headers?.request_id,
@@ -49,10 +48,9 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
       },
     };
 
-    await this.channelWrapper.publish(
-      'notifications.direct',
-      routingKey,
-      Buffer.from(JSON.stringify(message)),
+    await this.channelWrapper.sendToQueue(
+      queue,
+      message, // json:true handles serialization automatically
       options,
     );
   }
