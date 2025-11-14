@@ -29,13 +29,19 @@ export class NotificationService {
   async sendNotification(
     dto: CreateNotificationDto,
     user: any,
-    correlationId?: string,
   ): Promise<ApiResponse<any>> {
     try {
+      console.log('=== NOTIFICATION REQUEST START ===');
+      console.log('User:', user);
+      console.log('DTO:', dto);
+
+      // Check for duplicate
+      console.log('Checking duplicate for request_id:', dto.request_id);
       const isDuplicate = await this.redisService.checkDuplicate(
         dto.request_id,
       );
       if (isDuplicate) {
+        console.log('Duplicate detected!');
         const existingNotificationId =
           await this.redisService.getRequestMapping(dto.request_id);
         return {
@@ -46,61 +52,86 @@ export class NotificationService {
         };
       }
 
+      // Validate user
       const userServiceUrl =
         process.env.USER_SERVICE_URL || 'http://localhost:3001';
-      const userResponse = await firstValueFrom(
-        this.httpService.get(`${userServiceUrl}/api/v1/users/${dto.user_id}`),
-      );
+      console.log('USER_SERVICE_URL:', userServiceUrl);
+      console.log('Fetching user:', dto.user_id);
+
+      let userResponse;
+      try {
+        userResponse = await firstValueFrom(
+          this.httpService.get(`${userServiceUrl}/api/v1/users/${dto.user_id}`),
+        );
+        console.log('User fetched successfully:', userResponse.data);
+      } catch (error: any) {
+        console.error('❌ USER SERVICE ERROR:', error.message);
+        console.error('Error details:', error.response?.data || error);
+        throw new Error(`Failed to fetch user: ${error.message}`);
+      }
 
       if (!userResponse.data.success) {
+        console.error('User not found in response');
         throw new BadRequestException('User not found');
       }
 
       const targetUser = userResponse.data.data;
+      console.log('Target user:', targetUser);
 
+      // Check authorization
+      console.log('Checking authorization:', user.userId, 'vs', dto.user_id);
       if (user.userId !== dto.user_id) {
+        console.error('Authorization failed!');
         throw new ForbiddenException(
           'You can only send notifications to yourself',
         );
       }
 
+      // Check preferences
+      console.log('Checking user preferences:', targetUser.preferences);
       if (
         dto.notification_type === NotificationType.EMAIL &&
         !targetUser.preferences.email
       ) {
+        console.log('User has disabled email notifications');
         return {
           success: false,
           message: 'User has disabled email notifications',
         };
       }
 
-      if (
-        dto.notification_type === NotificationType.PUSH &&
-        !targetUser.preferences.push
-      ) {
-        return {
-          success: false,
-          message: 'User has disabled push notifications',
-        };
-      }
-
+      // Get template
       const templateServiceUrl =
         process.env.TEMPLATE_SERVICE_URL || 'http://localhost:3004';
-      const templateResponse = await firstValueFrom(
-        this.httpService.get(
-          `${templateServiceUrl}/api/v1/templates/${dto.template_code}`,
-        ),
-      );
+      console.log('TEMPLATE_SERVICE_URL:', templateServiceUrl);
+      console.log('Fetching template:', dto.template_code);
+
+      let templateResponse;
+      try {
+        templateResponse = await firstValueFrom(
+          this.httpService.get(
+            `${templateServiceUrl}/api/v1/templates/${dto.template_code}`,
+          ),
+        );
+        console.log('Template fetched successfully:', templateResponse.data);
+      } catch (error: any) {
+        console.error('❌ TEMPLATE SERVICE ERROR:', error.message);
+        console.error('Error details:', error.response?.data || error);
+        throw new Error(`Failed to fetch template: ${error.message}`);
+      }
 
       if (!templateResponse.data.success) {
+        console.error('Template not found in response');
         throw new BadRequestException('Template not found');
       }
 
+      // Generate notification ID
       const notificationId = uuidv4();
+      console.log('Generated notification_id:', notificationId);
 
+      // Prepare message
       const message = {
         notification_id: notificationId,
-        request_id: dto.request_id,
         user_id: dto.user_id,
         user_email: targetUser.email,
         user_push_token: targetUser.push_token,
@@ -110,21 +141,31 @@ export class NotificationService {
         metadata: dto.metadata,
         timestamp: new Date().toISOString(),
       };
+      console.log('Message prepared:', message);
 
+      // Route to queue
       const queue =
         dto.notification_type === NotificationType.EMAIL
-          ? 'email_queue'
-          : 'push_queue';
+          ? 'email.queue'
+          : 'push.queue';
+      console.log('Publishing to queue:', queue);
 
-      await this.circuitBreaker.execute(async () => {
-        await this.rabbitMQService.publishToQueue(queue, message, {
-          correlation_id: correlationId,
-          request_id: dto.request_id,
-        });
-      }, 'rabbitmq');
+      try {
+        await this.circuitBreaker.execute(async () => {
+          await this.rabbitMQService.publishToQueue(queue, message);
+        }, 'rabbitmq');
+        console.log('✅ Message published to queue successfully');
+      } catch (error: any) {
+        console.error('❌ RABBITMQ ERROR:', error.message);
+        throw new Error(`Failed to publish to queue: ${error.message}`);
+      }
 
+      // Mark as processed
+      console.log('Marking request as processed');
       await this.redisService.markProcessed(dto.request_id, notificationId);
 
+      // Store status
+      console.log('Storing initial status');
       await this.redisService.setStatus(notificationId, {
         status: NotificationStatus.PENDING,
         created_at: new Date().toISOString(),
@@ -132,6 +173,7 @@ export class NotificationService {
         user_id: dto.user_id,
       });
 
+      console.log('=== NOTIFICATION REQUEST SUCCESS ===');
       return {
         success: true,
         message: 'Notification queued successfully',
@@ -140,11 +182,16 @@ export class NotificationService {
           status: NotificationStatus.PENDING,
         },
       };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('=== NOTIFICATION REQUEST FAILED ===');
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+
       return {
         success: false,
         message: 'Failed to queue notification',
-        error: error.message,
+        error: error.message || 'Unknown error',
       };
     }
   }
