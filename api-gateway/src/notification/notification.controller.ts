@@ -42,7 +42,7 @@ export class NotificationController {
     return this.notificationService.sendNotification(
       dto,
       req.user,
-      req.correlationId,
+      // req.correlationId,
     );
   }
 
