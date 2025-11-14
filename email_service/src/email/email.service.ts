@@ -232,7 +232,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
       // Send email
       const info = await this.transporter.sendMail({
-        from: process.env.SMTP_USER,
+        from: process.env.FROM_EMAIL || process.env.SMTP_USER,
         to: message.user_email,
         subject: subject,
         html: html,
