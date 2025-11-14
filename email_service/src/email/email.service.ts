@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import * as nodemailer from 'nodemailer';
+import * as sgMail from '@sendgrid/mail';
 import * as Handlebars from 'handlebars';
 import * as amqp from 'amqp-connection-manager';
 import { ChannelWrapper } from 'amqp-connection-manager';
@@ -20,21 +20,19 @@ enum NotificationStatus {
 export class EmailService implements OnModuleInit, OnModuleDestroy {
   private connection: amqp.AmqpConnectionManager;
   private channelWrapper: ChannelWrapper;
-  private transporter: nodemailer.Transporter;
   private retryAttempts = new Map<string, number>();
   private redisClient: RedisClientType;
   private isProcessing = false;
 
   constructor(private readonly httpService: HttpService) {
-    this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+    // Initialize SendGrid
+    const apiKey = process.env.SENDGRID_API_KEY;
+    if (!apiKey) {
+      console.error('❌ SENDGRID_API_KEY environment variable is not set');
+    } else {
+      sgMail.setApiKey(apiKey);
+      console.log('✅ SendGrid initialized');
+    }
   }
 
   async onModuleInit() {
@@ -46,18 +44,25 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     // Connect to RabbitMQ
     await this.connectRabbitMQ();
 
-    // Verify SMTP connection
-    await this.verifySmtpConnection();
+    // Verify SendGrid
+    await this.verifySendGrid();
   }
 
-  private async verifySmtpConnection() {
-    try {
-      await this.transporter.verify();
-      console.log('✅ SMTP connection verified');
-    } catch (error) {
-      console.error('❌ SMTP connection failed:', error.message);
-      console.error('Check your SMTP_USER and SMTP_PASS environment variables');
+  private async verifySendGrid() {
+    if (!process.env.SENDGRID_API_KEY) {
+      console.error('❌ SendGrid API key not configured');
+      console.error('Set SENDGRID_API_KEY environment variable');
+      return;
     }
+
+    if (!process.env.FROM_EMAIL) {
+      console.error('❌ FROM_EMAIL not configured');
+      console.error('Set FROM_EMAIL to your verified sender email');
+      return;
+    }
+
+    console.log('✅ SendGrid ready to send emails');
+    console.log(`   From: ${process.env.FROM_EMAIL}`);
   }
 
   private async connectRedis() {
@@ -126,32 +131,28 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     );
 
     this.channelWrapper = this.connection.createChannel({
-      json: true, // IMPORTANT: Match API Gateway's json:true setting
+      json: true,
       setup: async (channel: any) => {
         console.log('⚙️ Setting up RabbitMQ channel...');
 
-        // Assert queues
         await channel.assertQueue('email.queue', {
           durable: true,
           arguments: {
-            'x-message-ttl': 86400000, // 24 hours
+            'x-message-ttl': 86400000,
           },
         });
         await channel.assertQueue('failed.queue', { durable: true });
 
         console.log('📬 Queues asserted');
 
-        // CHECK QUEUE STATUS BEFORE CONSUMING
         const queueInfo = await channel.checkQueue('email.queue');
         console.log('📊 Queue Status BEFORE consuming:');
         console.log(`   Messages in queue: ${queueInfo.messageCount}`);
         console.log(`   Consumers: ${queueInfo.consumerCount}`);
 
-        // Set prefetch
         await channel.prefetch(1);
         console.log('⚙️ Prefetch set to 1');
 
-        // Start consuming
         const consumerTag = await channel.consume(
           'email.queue',
           async (msg: any) => {
@@ -169,7 +170,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
         console.log(`✅ Consumer started with tag: ${consumerTag.consumerTag}`);
 
-        // CHECK QUEUE STATUS AFTER CONSUMING
         const queueInfoAfter = await channel.checkQueue('email.queue');
         console.log('📊 Queue Status AFTER consumer setup:');
         console.log(`   Messages in queue: ${queueInfoAfter.messageCount}`);
@@ -179,7 +179,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         console.log('👂 EMAIL SERVICE IS NOW LISTENING FOR MESSAGES');
         console.log('🎧'.repeat(20) + '\n');
 
-        // If there are messages, they should be consumed immediately
         if (queueInfoAfter.messageCount > 0) {
           console.log(
             `⚡ ${queueInfoAfter.messageCount} message(s) waiting to be processed...`,
@@ -204,7 +203,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     let correlationId = 'unknown';
 
     try {
-      // Parse message
       const messageContent = msg.content.toString();
       console.log('📝 Raw message content:', messageContent);
 
@@ -216,10 +214,8 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       console.log(`Recipient: ${message.user_email}`);
       console.log(`Subject Template: ${message.template?.subject || 'N/A'}`);
 
-      // Update status to PROCESSING
       await this.updateStatus(correlationId, NotificationStatus.PROCESSING);
 
-      // Compile templates
       const titleTemplate = Handlebars.compile(
         message.template.subject || 'Notification',
       );
@@ -230,31 +226,32 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
       console.log(`📧 Sending email with subject: "${subject}"`);
 
-      // Send email
-      const info = await this.transporter.sendMail({
-        from: process.env.FROM_EMAIL || process.env.SMTP_USER,
+      // Send email via SendGrid
+      const emailMsg = {
         to: message.user_email,
+        from: process.env.FROM_EMAIL,
         subject: subject,
         html: html,
-      });
+      };
 
-      console.log(`✅ Email sent successfully!`);
-      console.log(`   Message ID: ${info.messageId}`);
-      console.log(`   Response: ${info.response}`);
+      const response = await sgMail.send(emailMsg);
 
-      // Update status to DELIVERED
+      console.log(`✅ Email sent successfully via SendGrid!`);
+      console.log(`   Status Code: ${response[0].statusCode}`);
+      console.log(`   Message ID: ${response[0].headers['x-message-id']}`);
+
       await this.updateStatus(
         correlationId,
         NotificationStatus.DELIVERED,
         null,
         {
-          smtp_message_id: info.messageId,
+          sendgrid_message_id: response[0].headers['x-message-id'],
           recipient: message.user_email,
           sent_at: new Date().toISOString(),
+          status_code: response[0].statusCode,
         },
       );
 
-      // Acknowledge message
       channel.ack(msg);
       this.retryAttempts.delete(correlationId);
 
@@ -264,18 +261,21 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       console.error(`\n❌ FAILED TO SEND EMAIL`);
       console.error(`   Notification ID: ${correlationId}`);
       console.error(`   Error: ${error.message}`);
-      console.error(`   Stack: ${error.stack}`);
+
+      // SendGrid specific error details
+      if (error.response) {
+        console.error(`   Status: ${error.code}`);
+        console.error(`   Body: ${JSON.stringify(error.response.body)}`);
+      }
 
       const attempts = this.retryAttempts.get(correlationId) || 0;
 
       if (attempts < 3) {
-        // Retry with exponential backoff
         this.retryAttempts.set(correlationId, attempts + 1);
         const delay = Math.pow(2, attempts) * 1000;
 
         console.log(`🔄 Will retry in ${delay}ms (attempt ${attempts + 1}/3)`);
 
-        // Update status to RETRYING
         await this.updateStatus(
           correlationId,
           NotificationStatus.RETRYING,
@@ -287,7 +287,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
           channel.nack(msg, false, true);
         }, delay);
       } else {
-        // Move to dead letter queue
         console.log(`☠️ Max retries exceeded. Moving to dead letter queue.`);
 
         await channel.sendToQueue('failed.queue', msg.content, {
@@ -299,7 +298,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
           },
         });
 
-        // Update status to FAILED
         await this.updateStatus(
           correlationId,
           NotificationStatus.FAILED,
@@ -320,7 +318,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     metadata?: any,
   ) {
     try {
-      // Update Redis
       const currentStatus = await this.redisClient.get(
         `status:${notificationId}`,
       );
@@ -351,13 +348,12 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
       await this.redisClient.setEx(
         `status:${notificationId}`,
-        86400, // 24 hours
+        86400,
         JSON.stringify(updatedStatus),
       );
 
       console.log(`📊 Redis status updated: ${notificationId} -> ${status}`);
 
-      // Update via API Gateway
       const apiGatewayUrl =
         process.env.API_GATEWAY_URL || 'http://localhost:3000';
 
@@ -372,7 +368,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
               metadata: metadata,
             },
             {
-              timeout: 5000, // 5 second timeout
+              timeout: 5000,
             },
           ),
         );
@@ -380,7 +376,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
           `📡 API Gateway status updated: ${notificationId} -> ${status}`,
         );
       } catch (apiError) {
-        // Don't fail if API Gateway is unavailable
         console.warn(
           `⚠️ Failed to update status via API Gateway (non-critical): ${apiError.message}`,
         );
