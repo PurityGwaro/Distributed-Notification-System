@@ -38,7 +38,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
-
     // Connect to Redis
     await this.connectRedis();
 
@@ -122,7 +121,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     this.channelWrapper = this.connection.createChannel({
       json: true, // IMPORTANT: Match API Gateway's json:true setting
       setup: async (channel: any) => {
-
         // Assert queues
         await channel.assertQueue('email.queue', {
           durable: true,
@@ -134,6 +132,9 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
         console.log('📬 Queues asserted');
         const queueInfo = await channel.checkQueue('email.queue');
+        console.log('📊 Queue Status BEFORE consuming:');
+        console.log(`   Messages in queue: ${queueInfo.messageCount}`);
+        console.log(`   Consumers: ${queueInfo.consumerCount}`);
 
         await channel.prefetch(1);
 
@@ -198,7 +199,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         subject: subject,
         html: html,
       });
-
 
       await this.updateStatus(
         correlationId,
@@ -323,7 +323,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
               metadata: metadata,
             },
             {
-              timeout: 5000, 
+              timeout: 5000,
             },
           ),
         );
