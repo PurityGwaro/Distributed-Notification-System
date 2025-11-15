@@ -23,8 +23,18 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
             'x-message-ttl': 86400000,
           },
         });
-        await channel.assertQueue('push.queue', { durable: true });
-        await channel.assertQueue('failed.queue', { durable: true });
+        await channel.assertQueue('push.queue', {
+          durable: true,
+          arguments: {
+            'x-message-ttl': 86400000,
+          },
+        });
+        await channel.assertQueue('failed.queue', {
+          durable: true,
+          arguments: {
+            'x-message-ttl': 86400000,
+          },
+        });
       },
     });
 
