@@ -35,7 +35,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
-
     // Connect to Redis
     await this.connectRedis();
 
@@ -124,7 +123,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     this.channelWrapper = this.connection.createChannel({
       json: true,
       setup: async (channel: any) => {
-
         await channel.assertQueue('email.queue', {
           durable: true,
           arguments: {
@@ -133,21 +131,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         });
         await channel.assertQueue('failed.queue', { durable: true });
 
-        const queueInfo = await channel.checkQueue('email.queue');
-
         await channel.prefetch(1);
-
-        const consumerTag = await channel.consume(
-          'email.queue',
-          async (msg: any) => {
-            if (msg) {
-              await this.processEmailMessage(msg, channel);
-            } else {
-              console.log('Received null message');
-            }
-          },
-          { noAck: false },
-        );
 
         const queueInfoAfter = await channel.checkQueue('email.queue');
 
@@ -241,7 +225,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
           channel.nack(msg, false, true);
         }, delay);
       } else {
-
         await channel.sendToQueue('failed.queue', msg.content, {
           persistent: true,
           headers: {
@@ -333,7 +316,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-
     try {
       if (this.channelWrapper) {
         await this.channelWrapper.close();

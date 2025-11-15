@@ -43,7 +43,9 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   private async verifyOneSignal() {
     if (!process.env.ONESIGNAL_APP_ID || !process.env.ONESIGNAL_API_KEY) {
       console.error('OneSignal not configured');
-      console.error('Set ONESIGNAL_APP_ID and ONESIGNAL_API_KEY environment variables');
+      console.error(
+        'Set ONESIGNAL_APP_ID and ONESIGNAL_API_KEY environment variables',
+      );
       return;
     }
   }
@@ -104,7 +106,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     this.channelWrapper = this.connection.createChannel({
       json: true,
       setup: async (channel: any) => {
-
         await channel.assertQueue('push.queue', {
           durable: true,
           arguments: {
@@ -113,22 +114,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         });
         await channel.assertQueue('failed.queue', { durable: true });
 
-
-        const queueInfo = await channel.checkQueue('push.queue');
-
         await channel.prefetch(1);
-
-        const consumerTag = await channel.consume(
-          'push.queue',
-          async (msg: any) => {
-            if (msg) {
-              await this.processPushMessage(msg, channel);
-            } else {
-              console.log('Received null message');
-            }
-          },
-          { noAck: false }, // IMPORTANT: Must be false for manual ack
-        );
 
         const queueInfoAfter = await channel.checkQueue('push.queue');
 
@@ -203,7 +189,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
       channel.ack(msg);
       this.retryAttempts.delete(correlationId);
-
     } catch (error: any) {
       console.error(`\nFAILED TO SEND PUSH NOTIFICATION`);
       console.error(`   Notification ID: ${correlationId}`);
@@ -225,7 +210,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
           channel.nack(msg, false, true);
         }, delay);
       } else {
-
         await channel.sendToQueue('failed.queue', msg.content, {
           persistent: true,
           headers: {
@@ -279,7 +263,10 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
       return { messageId: response.data.id };
     } catch (error: any) {
-      console.error('OneSignal API Error:', error.response?.data || error.message);
+      console.error(
+        'OneSignal API Error:',
+        error.response?.data || error.message,
+      );
       throw new Error(`OneSignal send failed: ${error.message}`);
     }
   }
@@ -354,8 +341,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    console.log('Shutting down Push Service...');
-
     try {
       if (this.channelWrapper) {
         await this.channelWrapper.close();
@@ -374,7 +359,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     } catch (error: any) {
       console.error('Error during shutdown:', error.message);
     }
-
     console.log('Push Service shut down complete');
   }
 }
