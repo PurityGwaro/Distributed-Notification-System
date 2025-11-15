@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import * as sgMail from '@sendgrid/mail';
+import * as nodemailer from 'nodemailer';
 import * as Handlebars from 'handlebars';
 import * as amqp from 'amqp-connection-manager';
 import { ChannelWrapper } from 'amqp-connection-manager';
@@ -20,42 +20,41 @@ enum NotificationStatus {
 export class EmailService implements OnModuleInit, OnModuleDestroy {
   private connection: amqp.AmqpConnectionManager;
   private channelWrapper: ChannelWrapper;
+  private transporter: nodemailer.Transporter;
   private retryAttempts = new Map<string, number>();
   private redisClient: RedisClientType;
   private isProcessing = false;
 
   constructor(private readonly httpService: HttpService) {
-    // Initialize SendGrid
-    const apiKey = process.env.SENDGRID_API_KEY;
-    if (!apiKey) {
-      console.error('SENDGRID_API_KEY environment variable is not set');
-    } else {
-      sgMail.setApiKey(apiKey);
-    }
+    this.transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
   }
 
   async onModuleInit() {
+
     // Connect to Redis
     await this.connectRedis();
 
     // Connect to RabbitMQ
     await this.connectRabbitMQ();
 
-    // Verify SendGrid
-    await this.verifySendGrid();
+    // Verify SMTP connection
+    await this.verifySmtpConnection();
   }
 
-  private async verifySendGrid() {
-    if (!process.env.SENDGRID_API_KEY) {
-      console.error('SendGrid API key not configured');
-      console.error('Set SENDGRID_API_KEY environment variable');
-      return;
-    }
-
-    if (!process.env.FROM_EMAIL) {
-      console.error('FROM_EMAIL not configured');
-      console.error('Set FROM_EMAIL to your verified sender email');
-      return;
+  private async verifySmtpConnection() {
+    try {
+      await this.transporter.verify();
+    } catch (error) {
+      console.error('SMTP connection failed:', error.message);
+      console.error('Check your SMTP_USER and SMTP_PASS environment variables');
     }
   }
 
@@ -69,10 +68,10 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         port: redisPort,
         reconnectStrategy: (retries) => {
           if (retries > 10) {
-            console.error(' Redis max reconnection attempts reached');
             return new Error('Max reconnection attempts reached');
           }
           const delay = Math.min(retries * 100, 3000);
+          console.log(`Reconnecting to Redis... (attempt ${retries})`);
           return delay;
         },
       },
@@ -106,7 +105,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     );
     this.connection.on('disconnect', (err) =>
       console.error(
-        ' RabbitMQ disconnected:',
+        'RabbitMQ disconnected:',
         // @ts-expect-error: RabbitMQ error type is unknown and may not contain "message"
         err?.message || 'Unknown error',
       ),
@@ -114,24 +113,44 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
     this.connection.on('connectFailed', (err) =>
       console.error(
-        ' RabbitMQ connection failed:',
+        'RabbitMQ connection failed:',
         // @ts-expect-error: RabbitMQ error type does not strictly match TypeScript's expected shape
         err?.message || 'Unknown error',
       ),
     );
 
     this.channelWrapper = this.connection.createChannel({
-      json: true,
+      json: true, // IMPORTANT: Match API Gateway's json:true setting
       setup: async (channel: any) => {
+
+        // Assert queues
         await channel.assertQueue('email.queue', {
           durable: true,
           arguments: {
-            'x-message-ttl': 86400000,
+            'x-message-ttl': 86400000, // 24 hours
           },
         });
         await channel.assertQueue('failed.queue', { durable: true });
 
+        console.log('📬 Queues asserted');
+        const queueInfo = await channel.checkQueue('email.queue');
+
         await channel.prefetch(1);
+
+        await channel.consume(
+          'email.queue',
+          async (msg: any) => {
+            if (msg) {
+              console.log('\n' + '='.repeat(60));
+              console.log('🎉 MESSAGE RECEIVED FROM QUEUE!');
+              console.log('='.repeat(60));
+              await this.processEmailMessage(msg, channel);
+            } else {
+              console.log('Received null message');
+            }
+          },
+          { noAck: false },
+        );
 
         const queueInfoAfter = await channel.checkQueue('email.queue');
 
@@ -144,7 +163,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.channelWrapper.on('error', (err) => {
-      console.error(' Channel error:', err.message);
+      console.error('Channel error:', err.message);
     });
 
     this.channelWrapper.on('close', () => {
@@ -152,7 +171,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     });
 
     await this.channelWrapper.waitForConnect();
-    console.log('Email Service connected to RabbitMQ and ready');
   }
 
   private async processEmailMessage(msg: ConsumeMessage, channel: any) {
@@ -174,47 +192,43 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       const subject = titleTemplate(message.variables || {});
       const html = bodyTemplate(message.variables || {});
 
-      // Send email via SendGrid
-      const emailMsg = {
+      const info = await this.transporter.sendMail({
+        from: process.env.FROM_EMAIL || process.env.SMTP_USER,
         to: message.user_email,
-        from: process.env.FROM_EMAIL,
         subject: subject,
         html: html,
-      };
+      });
 
-      const response = await sgMail.send(emailMsg);
 
       await this.updateStatus(
         correlationId,
         NotificationStatus.DELIVERED,
         null,
         {
-          sendgrid_message_id: response[0].headers['x-message-id'],
+          smtp_message_id: info.messageId,
           recipient: message.user_email,
           sent_at: new Date().toISOString(),
-          status_code: response[0].statusCode,
         },
       );
 
       channel.ack(msg);
       this.retryAttempts.delete(correlationId);
     } catch (error) {
-      console.error(`\n FAILED TO SEND EMAIL`);
+      console.error(`\nFAILED TO SEND EMAIL`);
       console.error(`   Notification ID: ${correlationId}`);
       console.error(`   Error: ${error.message}`);
-
-      // SendGrid specific error details
-      if (error.response) {
-        console.error(`   Status: ${error.code}`);
-        console.error(`   Body: ${JSON.stringify(error.response.body)}`);
-      }
+      console.error(`   Stack: ${error.stack}`);
 
       const attempts = this.retryAttempts.get(correlationId) || 0;
 
       if (attempts < 3) {
+        // Retry with exponential backoff
         this.retryAttempts.set(correlationId, attempts + 1);
         const delay = Math.pow(2, attempts) * 1000;
 
+        console.log(`Will retry in ${delay}ms (attempt ${attempts + 1}/3)`);
+
+        // Update status to RETRYING
         await this.updateStatus(
           correlationId,
           NotificationStatus.RETRYING,
@@ -222,9 +236,13 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         );
 
         setTimeout(() => {
+          console.log(`Requeuing message for retry...`);
           channel.nack(msg, false, true);
         }, delay);
       } else {
+        // Move to dead letter queue
+        console.log(`☠️ Max retries exceeded. Moving to dead letter queue.`);
+
         await channel.sendToQueue('failed.queue', msg.content, {
           persistent: true,
           headers: {
@@ -234,6 +252,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
           },
         });
 
+        // Update status to FAILED
         await this.updateStatus(
           correlationId,
           NotificationStatus.FAILED,
@@ -242,6 +261,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
         channel.ack(msg);
         this.retryAttempts.delete(correlationId);
+        console.log(`=== EMAIL PROCESSING FAILED ===\n`);
       }
     }
   }
@@ -253,6 +273,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     metadata?: any,
   ) {
     try {
+      // Update Redis
       const currentStatus = await this.redisClient.get(
         `status:${notificationId}`,
       );
@@ -283,10 +304,11 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
       await this.redisClient.setEx(
         `status:${notificationId}`,
-        86400,
+        86400, // 24 hours
         JSON.stringify(updatedStatus),
       );
 
+      // Update via API Gateway
       const apiGatewayUrl =
         process.env.API_GATEWAY_URL || 'http://localhost:3000';
 
@@ -301,7 +323,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
               metadata: metadata,
             },
             {
-              timeout: 5000,
+              timeout: 5000, 
             },
           ),
         );
@@ -311,11 +333,13 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         );
       }
     } catch (err) {
-      console.error(` Failed to update status: ${err.message}`);
+      console.error(`Failed to update status: ${err.message}`);
     }
   }
 
   async onModuleDestroy() {
+    console.log('Shutting down Email Service...');
+
     try {
       if (this.channelWrapper) {
         await this.channelWrapper.close();
@@ -332,9 +356,9 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         console.log('Redis connection closed');
       }
     } catch (error) {
-      console.error(' Error during shutdown:', error.message);
+      console.error('Error during shutdown:', error.message);
     }
 
-    console.log('👋 Email Service shut down complete');
+    console.log('Email Service shut down complete');
   }
 }

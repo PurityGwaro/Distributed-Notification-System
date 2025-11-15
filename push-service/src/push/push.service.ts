@@ -60,10 +60,10 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         port: redisPort,
         reconnectStrategy: (retries) => {
           if (retries > 10) {
-            console.error('Redis max reconnection attempts reached');
             return new Error('Max reconnection attempts reached');
           }
           const delay = Math.min(retries * 100, 3000);
+          console.log(`Reconnecting to Redis... (attempt ${retries})`);
           return delay;
         },
       },
@@ -114,7 +114,27 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         });
         await channel.assertQueue('failed.queue', { durable: true });
 
+        const queueInfo = await channel.checkQueue('push.queue');
+        console.log('📊 Queue Status BEFORE consuming:');
+        console.log(`   Messages in queue: ${queueInfo.messageCount}`);
+        console.log(`   Consumers: ${queueInfo.consumerCount}`);
+
         await channel.prefetch(1);
+
+        await channel.consume(
+          'push.queue',
+          async (msg: any) => {
+            if (msg) {
+              console.log('\n' + '='.repeat(60));
+              console.log('🎉 MESSAGE RECEIVED FROM QUEUE!');
+              console.log('='.repeat(60));
+              await this.processPushMessage(msg, channel);
+            } else {
+              console.log('Received null message');
+            }
+          },
+          { noAck: false },
+        );
 
         const queueInfoAfter = await channel.checkQueue('push.queue');
 
@@ -143,6 +163,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
     try {
       const messageContent = msg.content.toString();
+      console.log('📝 Raw message content:', messageContent);
 
       const message = JSON.parse(messageContent);
       correlationId = message.notification_id;
@@ -175,6 +196,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         data: message.metadata,
       });
 
+
       await this.updateStatus(
         correlationId,
         NotificationStatus.DELIVERED,
@@ -189,11 +211,8 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
       channel.ack(msg);
       this.retryAttempts.delete(correlationId);
-    } catch (error: any) {
-      console.error(`\nFAILED TO SEND PUSH NOTIFICATION`);
-      console.error(`   Notification ID: ${correlationId}`);
-      console.error(`   Error: ${error.message}`);
 
+    } catch (error: any) {
       const attempts = this.retryAttempts.get(correlationId) || 0;
 
       if (attempts < 3) {
@@ -227,6 +246,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
         channel.ack(msg);
         this.retryAttempts.delete(correlationId);
+        console.log(`PUSH NOTIFICATION FAILED`);
       }
     }
   }
@@ -236,7 +256,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     const oneSignalApiKey = process.env.ONESIGNAL_API_KEY;
 
     if (!oneSignalAppId || !oneSignalApiKey) {
-      console.warn('OneSignal not configured - simulating push send');
       return { messageId: `simulated_${Date.now()}` };
     }
 
@@ -312,6 +331,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         JSON.stringify(updatedStatus),
       );
 
+
       const apiGatewayUrl =
         process.env.API_GATEWAY_URL || 'http://localhost:3000';
 
@@ -341,6 +361,8 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    console.log('Shutting down Push Service...');
+
     try {
       if (this.channelWrapper) {
         await this.channelWrapper.close();
@@ -359,6 +381,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     } catch (error: any) {
       console.error('Error during shutdown:', error.message);
     }
+
     console.log('Push Service shut down complete');
   }
 }
