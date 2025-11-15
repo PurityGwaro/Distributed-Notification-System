@@ -29,7 +29,6 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     });
 
     await this.channelWrapper.waitForConnect();
-    console.log('RabbitMQ connected');
   }
 
   async publishToQueue(

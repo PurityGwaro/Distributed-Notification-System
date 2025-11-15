@@ -31,17 +31,10 @@ export class NotificationService {
     user: any,
   ): Promise<ApiResponse<any>> {
     try {
-      console.log('=== NOTIFICATION REQUEST START ===');
-      console.log('User:', user);
-      console.log('DTO:', dto);
-
-      // Check for duplicate
-      console.log('Checking duplicate for request_id:', dto.request_id);
       const isDuplicate = await this.redisService.checkDuplicate(
         dto.request_id,
       );
       if (isDuplicate) {
-        console.log('Duplicate detected!');
         const existingNotificationId =
           await this.redisService.getRequestMapping(dto.request_id);
         return {
@@ -55,15 +48,12 @@ export class NotificationService {
       // Validate user
       const userServiceUrl =
         process.env.USER_SERVICE_URL || 'http://localhost:3001';
-      console.log('USER_SERVICE_URL:', userServiceUrl);
-      console.log('Fetching user:', dto.user_id);
 
       let userResponse;
       try {
         userResponse = await firstValueFrom(
           this.httpService.get(`${userServiceUrl}/api/v1/users/${dto.user_id}`),
         );
-        console.log('User fetched successfully:', userResponse.data);
       } catch (error: any) {
         console.error('❌ USER SERVICE ERROR:', error.message);
         console.error('Error details:', error.response?.data || error);
@@ -76,10 +66,7 @@ export class NotificationService {
       }
 
       const targetUser = userResponse.data.data;
-      console.log('Target user:', targetUser);
 
-      // Check authorization
-      console.log('Checking authorization:', user.userId, 'vs', dto.user_id);
       if (user.userId !== dto.user_id) {
         console.error('Authorization failed!');
         throw new ForbiddenException(
@@ -87,13 +74,10 @@ export class NotificationService {
         );
       }
 
-      // Check preferences
-      console.log('Checking user preferences:', targetUser.preferences);
       if (
         dto.notification_type === NotificationType.EMAIL &&
         !targetUser.preferences.email
       ) {
-        console.log('User has disabled email notifications');
         return {
           success: false,
           message: 'User has disabled email notifications',
@@ -103,8 +87,6 @@ export class NotificationService {
       // Get template
       const templateServiceUrl =
         process.env.TEMPLATE_SERVICE_URL || 'http://localhost:3004';
-      console.log('TEMPLATE_SERVICE_URL:', templateServiceUrl);
-      console.log('Fetching template:', dto.template_code);
 
       let templateResponse;
       try {
@@ -113,7 +95,6 @@ export class NotificationService {
             `${templateServiceUrl}/api/v1/templates/${dto.template_code}`,
           ),
         );
-        console.log('Template fetched successfully:', templateResponse.data);
       } catch (error: any) {
         console.error('❌ TEMPLATE SERVICE ERROR:', error.message);
         console.error('Error details:', error.response?.data || error);
@@ -127,7 +108,6 @@ export class NotificationService {
 
       // Generate notification ID
       const notificationId = uuidv4();
-      console.log('Generated notification_id:', notificationId);
 
       // Prepare message
       const message = {
@@ -141,39 +121,28 @@ export class NotificationService {
         metadata: dto.metadata,
         timestamp: new Date().toISOString(),
       };
-      console.log('Message prepared:', message);
 
       // Route to queue
       const queue =
         dto.notification_type === NotificationType.EMAIL
           ? 'email.queue'
           : 'push.queue';
-      console.log('Publishing to queue:', queue);
 
       try {
         await this.circuitBreaker.execute(async () => {
           await this.rabbitMQService.publishToQueue(queue, message);
         }, 'rabbitmq');
-        console.log('✅ Message published to queue successfully');
       } catch (error: any) {
-        console.error('❌ RABBITMQ ERROR:', error.message);
         throw new Error(`Failed to publish to queue: ${error.message}`);
       }
-
-      // Mark as processed
-      console.log('Marking request as processed');
       await this.redisService.markProcessed(dto.request_id, notificationId);
 
-      // Store status
-      console.log('Storing initial status');
       await this.redisService.setStatus(notificationId, {
         status: NotificationStatus.PENDING,
         created_at: new Date().toISOString(),
         notification_type: dto.notification_type,
         user_id: dto.user_id,
       });
-
-      console.log('=== NOTIFICATION REQUEST SUCCESS ===');
       return {
         success: true,
         message: 'Notification queued successfully',

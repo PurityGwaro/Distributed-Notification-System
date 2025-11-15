@@ -35,7 +35,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly httpService: HttpService) {}
 
   async onModuleInit() {
-    console.log('🚀 Push Service initializing...');
     await this.connectRedis();
     await this.connectRabbitMQ();
     await this.verifyOneSignal();
@@ -43,13 +42,12 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
   private async verifyOneSignal() {
     if (!process.env.ONESIGNAL_APP_ID || !process.env.ONESIGNAL_API_KEY) {
-      console.error('❌ OneSignal not configured');
-      console.error('Set ONESIGNAL_APP_ID and ONESIGNAL_API_KEY environment variables');
+      console.error('OneSignal not configured');
+      console.error(
+        'Set ONESIGNAL_APP_ID and ONESIGNAL_API_KEY environment variables',
+      );
       return;
     }
-
-    console.log('✅ OneSignal ready to send push notifications');
-    console.log(`   App ID: ${process.env.ONESIGNAL_APP_ID.substring(0, 8)}...`);
   }
 
   private async connectRedis() {
@@ -62,11 +60,10 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         port: redisPort,
         reconnectStrategy: (retries) => {
           if (retries > 10) {
-            console.error('❌ Redis max reconnection attempts reached');
+            console.error('Redis max reconnection attempts reached');
             return new Error('Max reconnection attempts reached');
           }
           const delay = Math.min(retries * 100, 3000);
-          console.log(`🔄 Reconnecting to Redis... (attempt ${retries})`);
           return delay;
         },
       },
@@ -74,13 +71,13 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.redisClient.on('error', (err) =>
-      console.error('❌ Redis Client Error:', err.message),
+      console.error('Redis Client Error:', err.message),
     );
     this.redisClient.on('connect', () =>
-      console.log('✅ Push Service: Redis connected'),
+      console.log('Push Service: Redis connected'),
     );
     this.redisClient.on('reconnecting', () =>
-      console.log('🔄 Redis reconnecting...'),
+      console.log('Redis reconnecting...'),
     );
 
     await this.redisClient.connect();
@@ -90,20 +87,17 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     const rabbitMQUrl =
       process.env.RABBITMQ_URL || 'amqp://admin:admin@localhost:5672';
 
-    console.log('🔌 Connecting to RabbitMQ...');
-    console.log(`   URL: ${rabbitMQUrl.replace(/\/\/.*:.*@/, '//***:***@')}`);
-
     this.connection = amqp.connect([rabbitMQUrl], {
       heartbeatIntervalInSeconds: 30,
       reconnectTimeInSeconds: 5,
     });
 
     this.connection.on('connect', () =>
-      console.log('✅ RabbitMQ connection established'),
+      console.log('RabbitMQ connection established'),
     );
     this.connection.on('disconnect', (err) =>
       console.error(
-        '❌ RabbitMQ disconnected:',
+        'RabbitMQ disconnected:',
         // @ts-expect-error: RabbitMQ error type
         err?.message || 'Unknown error',
       ),
@@ -112,8 +106,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     this.channelWrapper = this.connection.createChannel({
       json: true,
       setup: async (channel: any) => {
-        console.log('⚙️ Setting up RabbitMQ channel...');
-
         await channel.assertQueue('push.queue', {
           durable: true,
           arguments: {
@@ -122,41 +114,9 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         });
         await channel.assertQueue('failed.queue', { durable: true });
 
-        console.log('📬 Queues asserted');
-
-        const queueInfo = await channel.checkQueue('push.queue');
-        console.log('📊 Queue Status BEFORE consuming:');
-        console.log(`   Messages in queue: ${queueInfo.messageCount}`);
-        console.log(`   Consumers: ${queueInfo.consumerCount}`);
-
         await channel.prefetch(1);
-        console.log('⚙️ Prefetch set to 1');
-
-        const consumerTag = await channel.consume(
-          'push.queue',
-          async (msg: any) => {
-            if (msg) {
-              console.log('\n' + '='.repeat(60));
-              console.log('🎉 MESSAGE RECEIVED FROM QUEUE!');
-              console.log('='.repeat(60));
-              await this.processPushMessage(msg, channel);
-            } else {
-              console.log('⚠️ Received null message');
-            }
-          },
-          { noAck: false }, // IMPORTANT: Must be false for manual ack
-        );
-
-        console.log(`✅ Consumer started with tag: ${consumerTag.consumerTag}`);
 
         const queueInfoAfter = await channel.checkQueue('push.queue');
-        console.log('📊 Queue Status AFTER consumer setup:');
-        console.log(`   Messages in queue: ${queueInfoAfter.messageCount}`);
-        console.log(`   Consumers: ${queueInfoAfter.consumerCount}`);
-
-        console.log('\n' + '🎧'.repeat(20));
-        console.log('👂 PUSH SERVICE IS NOW LISTENING FOR MESSAGES');
-        console.log('🎧'.repeat(20) + '\n');
 
         if (queueInfoAfter.messageCount > 0) {
           console.log(
@@ -167,15 +127,15 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.channelWrapper.on('error', (err) => {
-      console.error('❌ Channel error:', err.message);
+      console.error('Channel error:', err.message);
     });
 
     this.channelWrapper.on('close', () => {
-      console.log('⚠️ Channel closed');
+      console.log('Channel closed');
     });
 
     await this.channelWrapper.waitForConnect();
-    console.log('✅ Push Service connected to RabbitMQ and ready');
+    console.log('Push Service connected to RabbitMQ and ready');
   }
 
   private async processPushMessage(msg: ConsumeMessage, channel: any) {
@@ -183,18 +143,12 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
     try {
       const messageContent = msg.content.toString();
-      console.log('📝 Raw message content:', messageContent);
 
       const message = JSON.parse(messageContent);
       correlationId = message.notification_id;
 
-      console.log(`\n=== PROCESSING PUSH NOTIFICATION ===`);
-      console.log(`Notification ID: ${correlationId}`);
-      console.log(`User ID: ${message.user_id}`);
-      console.log(`Push Token: ${message.user_push_token ? 'Present' : 'Missing'}`);
-
       if (!message.user_push_token) {
-        console.error('❌ No push token available for user');
+        console.error('No push token available for user');
         await this.updateStatus(
           correlationId,
           NotificationStatus.FAILED,
@@ -214,17 +168,12 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       const title = titleTemplate(message.variables || {});
       const body = bodyTemplate(message.variables || {});
 
-      console.log(`📱 Sending push notification: "${title}"`);
-
       const response = await this.sendPushNotification({
         token: message.user_push_token,
         title,
         body,
         data: message.metadata,
       });
-
-      console.log(`✅ Push notification sent successfully!`);
-      console.log(`   OneSignal ID: ${response.messageId}`);
 
       await this.updateStatus(
         correlationId,
@@ -240,11 +189,8 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
       channel.ack(msg);
       this.retryAttempts.delete(correlationId);
-
-      console.log(`✅ Message acknowledged and removed from queue`);
-      console.log(`=== PUSH NOTIFICATION COMPLETE ===\n`);
     } catch (error: any) {
-      console.error(`\n❌ FAILED TO SEND PUSH NOTIFICATION`);
+      console.error(`\nFAILED TO SEND PUSH NOTIFICATION`);
       console.error(`   Notification ID: ${correlationId}`);
       console.error(`   Error: ${error.message}`);
 
@@ -254,8 +200,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         this.retryAttempts.set(correlationId, attempts + 1);
         const delay = Math.pow(2, attempts) * 1000;
 
-        console.log(`🔄 Will retry in ${delay}ms (attempt ${attempts + 1}/3)`);
-
         await this.updateStatus(
           correlationId,
           NotificationStatus.RETRYING,
@@ -263,12 +207,9 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         );
 
         setTimeout(() => {
-          console.log(`🔄 Requeuing message for retry...`);
           channel.nack(msg, false, true);
         }, delay);
       } else {
-        console.log(`☠️ Max retries exceeded. Moving to dead letter queue.`);
-
         await channel.sendToQueue('failed.queue', msg.content, {
           persistent: true,
           headers: {
@@ -286,7 +227,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
         channel.ack(msg);
         this.retryAttempts.delete(correlationId);
-        console.log(`=== PUSH NOTIFICATION FAILED ===\n`);
       }
     }
   }
@@ -296,7 +236,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     const oneSignalApiKey = process.env.ONESIGNAL_API_KEY;
 
     if (!oneSignalAppId || !oneSignalApiKey) {
-      console.warn('⚠️ OneSignal not configured - simulating push send');
+      console.warn('OneSignal not configured - simulating push send');
       return { messageId: `simulated_${Date.now()}` };
     }
 
@@ -323,7 +263,10 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
       return { messageId: response.data.id };
     } catch (error: any) {
-      console.error('❌ OneSignal API Error:', error.response?.data || error.message);
+      console.error(
+        'OneSignal API Error:',
+        error.response?.data || error.message,
+      );
       throw new Error(`OneSignal send failed: ${error.message}`);
     }
   }
@@ -369,8 +312,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         JSON.stringify(updatedStatus),
       );
 
-      console.log(`📊 Redis status updated: ${notificationId} -> ${status}`);
-
       const apiGatewayUrl =
         process.env.API_GATEWAY_URL || 'http://localhost:3000';
 
@@ -389,41 +330,35 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
             },
           ),
         );
-        console.log(
-          `📡 API Gateway status updated: ${notificationId} -> ${status}`,
-        );
       } catch (apiError: any) {
         console.warn(
-          `⚠️ Failed to update status via API Gateway (non-critical): ${apiError.message}`,
+          `Failed to update status via API Gateway (non-critical): ${apiError.message}`,
         );
       }
     } catch (err: any) {
-      console.error(`❌ Failed to update status: ${err.message}`);
+      console.error(`Failed to update status: ${err.message}`);
     }
   }
 
   async onModuleDestroy() {
-    console.log('🛑 Shutting down Push Service...');
-
     try {
       if (this.channelWrapper) {
         await this.channelWrapper.close();
-        console.log('✅ Channel closed');
+        console.log('Channel closed');
       }
 
       if (this.connection) {
         await this.connection.close();
-        console.log('✅ RabbitMQ connection closed');
+        console.log('RabbitMQ connection closed');
       }
 
       if (this.redisClient) {
         await this.redisClient.quit();
-        console.log('✅ Redis connection closed');
+        console.log('Redis connection closed');
       }
     } catch (error: any) {
-      console.error('❌ Error during shutdown:', error.message);
+      console.error('Error during shutdown:', error.message);
     }
-
-    console.log('👋 Push Service shut down complete');
+    console.log('Push Service shut down complete');
   }
 }

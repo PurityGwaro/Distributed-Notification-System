@@ -10,7 +10,6 @@ async function fetchWithRetry(url: string, retries = 5, delay = 2000) {
       const response = await axios.get(url, { timeout: 5000 });
       return response.data;
     } catch (error) {
-      console.log(`Attempt ${i + 1} failed for ${url}. Retrying...`);
       if (i === retries - 1) throw error;
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
@@ -48,10 +47,8 @@ async function bootstrap() {
 
   for (const service of services) {
     try {
-      console.log(`Fetching ${service.name}...`);
       const doc = await fetchWithRetry(service.url);
       SwaggerModule.setup(service.path, app, doc);
-      console.log(`✓ ${service.name} docs available at /${service.path}`);
     } catch (error) {
       console.error(`✗ Failed to fetch ${service.name}:`, error.message);
     }
