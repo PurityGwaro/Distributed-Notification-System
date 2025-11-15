@@ -112,7 +112,12 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
             'x-message-ttl': 86400000,
           },
         });
-        await channel.assertQueue('failed.queue', { durable: true });
+        await channel.assertQueue('failed.queue', {
+          durable: true,
+          arguments: {
+            'x-message-ttl': 86400000, // 24 hours
+          },
+        });
 
         const queueInfo = await channel.checkQueue('push.queue');
         console.log('📊 Queue Status BEFORE consuming:');
@@ -196,7 +201,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         data: message.metadata,
       });
 
-
       await this.updateStatus(
         correlationId,
         NotificationStatus.DELIVERED,
@@ -211,7 +215,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
       channel.ack(msg);
       this.retryAttempts.delete(correlationId);
-
     } catch (error: any) {
       const attempts = this.retryAttempts.get(correlationId) || 0;
 
@@ -330,7 +333,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         86400,
         JSON.stringify(updatedStatus),
       );
-
 
       const apiGatewayUrl =
         process.env.API_GATEWAY_URL || 'http://localhost:3000';
