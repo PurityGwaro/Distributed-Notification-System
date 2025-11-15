@@ -128,7 +128,12 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
             'x-message-ttl': 86400000, // 24 hours
           },
         });
-        await channel.assertQueue('failed.queue', { durable: true });
+        await channel.assertQueue('failed.queue', {
+          durable: true,
+          arguments: {
+            'x-message-ttl': 86400000, // 24 hours
+          },
+        });
 
         console.log('📬 Queues asserted');
         const queueInfo = await channel.checkQueue('email.queue');
