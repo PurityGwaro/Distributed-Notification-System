@@ -36,3 +36,8 @@ coverage
 # Misc
 *.bak
 *.tmp
+
+#push token test
+index.html
+OneSignalSDK.sw.js
+OneSignalSDKWorker.js

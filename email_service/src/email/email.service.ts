@@ -28,15 +28,13 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     // Initialize SendGrid
     const apiKey = process.env.SENDGRID_API_KEY;
     if (!apiKey) {
-      console.error('❌ SENDGRID_API_KEY environment variable is not set');
+      console.error('SENDGRID_API_KEY environment variable is not set');
     } else {
       sgMail.setApiKey(apiKey);
-      console.log('✅ SendGrid initialized');
     }
   }
 
   async onModuleInit() {
-    console.log('🚀 Email Service initializing...');
 
     // Connect to Redis
     await this.connectRedis();
@@ -50,19 +48,16 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
   private async verifySendGrid() {
     if (!process.env.SENDGRID_API_KEY) {
-      console.error('❌ SendGrid API key not configured');
+      console.error('SendGrid API key not configured');
       console.error('Set SENDGRID_API_KEY environment variable');
       return;
     }
 
     if (!process.env.FROM_EMAIL) {
-      console.error('❌ FROM_EMAIL not configured');
+      console.error('FROM_EMAIL not configured');
       console.error('Set FROM_EMAIL to your verified sender email');
       return;
     }
-
-    console.log('✅ SendGrid ready to send emails');
-    console.log(`   From: ${process.env.FROM_EMAIL}`);
   }
 
   private async connectRedis() {
@@ -75,11 +70,10 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         port: redisPort,
         reconnectStrategy: (retries) => {
           if (retries > 10) {
-            console.error('❌ Redis max reconnection attempts reached');
+            console.error(' Redis max reconnection attempts reached');
             return new Error('Max reconnection attempts reached');
           }
           const delay = Math.min(retries * 100, 3000);
-          console.log(`🔄 Reconnecting to Redis... (attempt ${retries})`);
           return delay;
         },
       },
@@ -87,13 +81,13 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.redisClient.on('error', (err) =>
-      console.error('❌ Redis Client Error:', err.message),
+      console.error('Redis Client Error:', err.message),
     );
     this.redisClient.on('connect', () =>
-      console.log('✅ Email Service: Redis connected'),
+      console.log('Email Service: Redis connected'),
     );
     this.redisClient.on('reconnecting', () =>
-      console.log('🔄 Redis reconnecting...'),
+      console.log('Redis reconnecting...'),
     );
 
     await this.redisClient.connect();
@@ -103,20 +97,17 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     const rabbitMQUrl =
       process.env.RABBITMQ_URL || 'amqp://admin:admin@localhost:5672';
 
-    console.log('🔌 Connecting to RabbitMQ...');
-    console.log(`   URL: ${rabbitMQUrl.replace(/\/\/.*:.*@/, '//***:***@')}`);
-
     this.connection = amqp.connect([rabbitMQUrl], {
       heartbeatIntervalInSeconds: 30,
       reconnectTimeInSeconds: 5,
     });
 
     this.connection.on('connect', () =>
-      console.log('✅ RabbitMQ connection established'),
+      console.log('RabbitMQ connection established'),
     );
     this.connection.on('disconnect', (err) =>
       console.error(
-        '❌ RabbitMQ disconnected:',
+        ' RabbitMQ disconnected:',
         // @ts-expect-error: RabbitMQ error type is unknown and may not contain "message"
         err?.message || 'Unknown error',
       ),
@@ -124,7 +115,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
     this.connection.on('connectFailed', (err) =>
       console.error(
-        '❌ RabbitMQ connection failed:',
+        ' RabbitMQ connection failed:',
         // @ts-expect-error: RabbitMQ error type does not strictly match TypeScript's expected shape
         err?.message || 'Unknown error',
       ),
@@ -133,7 +124,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     this.channelWrapper = this.connection.createChannel({
       json: true,
       setup: async (channel: any) => {
-        console.log('⚙️ Setting up RabbitMQ channel...');
 
         await channel.assertQueue('email.queue', {
           durable: true,
@@ -143,41 +133,23 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         });
         await channel.assertQueue('failed.queue', { durable: true });
 
-        console.log('📬 Queues asserted');
-
         const queueInfo = await channel.checkQueue('email.queue');
-        console.log('📊 Queue Status BEFORE consuming:');
-        console.log(`   Messages in queue: ${queueInfo.messageCount}`);
-        console.log(`   Consumers: ${queueInfo.consumerCount}`);
 
         await channel.prefetch(1);
-        console.log('⚙️ Prefetch set to 1');
 
         const consumerTag = await channel.consume(
           'email.queue',
           async (msg: any) => {
             if (msg) {
-              console.log('\n' + '='.repeat(60));
-              console.log('🎉 MESSAGE RECEIVED FROM QUEUE!');
-              console.log('='.repeat(60));
               await this.processEmailMessage(msg, channel);
             } else {
-              console.log('⚠️ Received null message');
+              console.log('Received null message');
             }
           },
           { noAck: false },
         );
 
-        console.log(`✅ Consumer started with tag: ${consumerTag.consumerTag}`);
-
         const queueInfoAfter = await channel.checkQueue('email.queue');
-        console.log('📊 Queue Status AFTER consumer setup:');
-        console.log(`   Messages in queue: ${queueInfoAfter.messageCount}`);
-        console.log(`   Consumers: ${queueInfoAfter.consumerCount}`);
-
-        console.log('\n' + '🎧'.repeat(20));
-        console.log('👂 EMAIL SERVICE IS NOW LISTENING FOR MESSAGES');
-        console.log('🎧'.repeat(20) + '\n');
 
         if (queueInfoAfter.messageCount > 0) {
           console.log(
@@ -188,15 +160,15 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.channelWrapper.on('error', (err) => {
-      console.error('❌ Channel error:', err.message);
+      console.error(' Channel error:', err.message);
     });
 
     this.channelWrapper.on('close', () => {
-      console.log('⚠️ Channel closed');
+      console.log('Channel closed');
     });
 
     await this.channelWrapper.waitForConnect();
-    console.log('✅ Email Service connected to RabbitMQ and ready');
+    console.log('Email Service connected to RabbitMQ and ready');
   }
 
   private async processEmailMessage(msg: ConsumeMessage, channel: any) {
@@ -204,15 +176,9 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
     try {
       const messageContent = msg.content.toString();
-      console.log('📝 Raw message content:', messageContent);
 
       const message = JSON.parse(messageContent);
       correlationId = message.notification_id;
-
-      console.log(`\n=== PROCESSING EMAIL ===`);
-      console.log(`Notification ID: ${correlationId}`);
-      console.log(`Recipient: ${message.user_email}`);
-      console.log(`Subject Template: ${message.template?.subject || 'N/A'}`);
 
       await this.updateStatus(correlationId, NotificationStatus.PROCESSING);
 
@@ -224,8 +190,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       const subject = titleTemplate(message.variables || {});
       const html = bodyTemplate(message.variables || {});
 
-      console.log(`📧 Sending email with subject: "${subject}"`);
-
       // Send email via SendGrid
       const emailMsg = {
         to: message.user_email,
@@ -235,10 +199,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       };
 
       const response = await sgMail.send(emailMsg);
-
-      console.log(`✅ Email sent successfully via SendGrid!`);
-      console.log(`   Status Code: ${response[0].statusCode}`);
-      console.log(`   Message ID: ${response[0].headers['x-message-id']}`);
 
       await this.updateStatus(
         correlationId,
@@ -254,11 +214,8 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
       channel.ack(msg);
       this.retryAttempts.delete(correlationId);
-
-      console.log(`✅ Message acknowledged and removed from queue`);
-      console.log(`=== EMAIL PROCESSING COMPLETE ===\n`);
     } catch (error) {
-      console.error(`\n❌ FAILED TO SEND EMAIL`);
+      console.error(`\n FAILED TO SEND EMAIL`);
       console.error(`   Notification ID: ${correlationId}`);
       console.error(`   Error: ${error.message}`);
 
@@ -274,8 +231,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         this.retryAttempts.set(correlationId, attempts + 1);
         const delay = Math.pow(2, attempts) * 1000;
 
-        console.log(`🔄 Will retry in ${delay}ms (attempt ${attempts + 1}/3)`);
-
         await this.updateStatus(
           correlationId,
           NotificationStatus.RETRYING,
@@ -283,11 +238,9 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         );
 
         setTimeout(() => {
-          console.log(`🔄 Requeuing message for retry...`);
           channel.nack(msg, false, true);
         }, delay);
       } else {
-        console.log(`☠️ Max retries exceeded. Moving to dead letter queue.`);
 
         await channel.sendToQueue('failed.queue', msg.content, {
           persistent: true,
@@ -306,7 +259,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
         channel.ack(msg);
         this.retryAttempts.delete(correlationId);
-        console.log(`=== EMAIL PROCESSING FAILED ===\n`);
       }
     }
   }
@@ -352,8 +304,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         JSON.stringify(updatedStatus),
       );
 
-      console.log(`📊 Redis status updated: ${notificationId} -> ${status}`);
-
       const apiGatewayUrl =
         process.env.API_GATEWAY_URL || 'http://localhost:3000';
 
@@ -372,39 +322,35 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
             },
           ),
         );
-        console.log(
-          `📡 API Gateway status updated: ${notificationId} -> ${status}`,
-        );
       } catch (apiError) {
         console.warn(
-          `⚠️ Failed to update status via API Gateway (non-critical): ${apiError.message}`,
+          `Failed to update status via API Gateway (non-critical): ${apiError.message}`,
         );
       }
     } catch (err) {
-      console.error(`❌ Failed to update status: ${err.message}`);
+      console.error(` Failed to update status: ${err.message}`);
     }
   }
 
   async onModuleDestroy() {
-    console.log('🛑 Shutting down Email Service...');
 
     try {
       if (this.channelWrapper) {
         await this.channelWrapper.close();
-        console.log('✅ Channel closed');
+        console.log('Channel closed');
       }
 
       if (this.connection) {
         await this.connection.close();
-        console.log('✅ RabbitMQ connection closed');
+        console.log('RabbitMQ connection closed');
       }
 
       if (this.redisClient) {
         await this.redisClient.quit();
-        console.log('✅ Redis connection closed');
+        console.log('Redis connection closed');
       }
     } catch (error) {
-      console.error('❌ Error during shutdown:', error.message);
+      console.error(' Error during shutdown:', error.message);
     }
 
     console.log('👋 Email Service shut down complete');
